@@ -1,0 +1,23 @@
+# Large data files
+data/awin_products.db
+
+# Logs
+logs/
+error_log_awin.txt
+error_log_awin2.txt
+*.log
+
+# Cache and Sessions
+cache/
+sessions/
+
+# PHP specific
+vendor/
+composer.lock
+
+# OS/IDE specific
+.DS_Store
+.vscode/
+
+# Project specific
+implementation_plan.md.resolved

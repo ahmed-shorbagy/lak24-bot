@@ -1,0 +1,700 @@
+/* ═══════════════════════════════════════════════════════════════════
+   lak24 AI Chatbot — Chat Widget Styles
+   Premium, RTL-aware, Arabic-friendly chat interface
+   ═══════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+
+/* ─── CSS Variables (Design Tokens) ─────────────────────────────── */
+:root {
+    --lak24-primary: #1a73e8;
+    --lak24-primary-dark: #1557b0;
+    --lak24-primary-light: #e8f0fe;
+    --lak24-accent: #34a853;
+    --lak24-accent-light: #e6f4ea;
+    --lak24-bg: #f8f9fa;
+    --lak24-surface: #ffffff;
+    --lak24-text: #202124;
+    --lak24-text-secondary: #5f6368;
+    --lak24-border: #dadce0;
+    --lak24-user-bubble: #1a73e8;
+    --lak24-user-text: #ffffff;
+    --lak24-bot-bubble: #ffffff;
+    --lak24-bot-text: #202124;
+    --lak24-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    --lak24-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+    --lak24-radius: 16px;
+    --lak24-radius-sm: 12px;
+    --lak24-font: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
+    --lak24-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --lak24-chat-width: 400px;
+    --lak24-chat-height: 600px;
+}
+
+/* ─── Floating Chat Button ──────────────────────────────────────── */
+.lak24-chat-toggle {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--lak24-primary), var(--lak24-primary-dark));
+    border: none;
+    cursor: pointer;
+    box-shadow: var(--lak24-shadow);
+    z-index: 99998;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--lak24-transition);
+    outline: none;
+}
+
+.lak24-chat-toggle:hover {
+    transform: scale(1.08);
+    box-shadow: 0 12px 40px rgba(26, 115, 232, 0.4);
+}
+
+.lak24-chat-toggle:active {
+    transform: scale(0.95);
+}
+
+.lak24-chat-toggle svg {
+    width: 28px;
+    height: 28px;
+    fill: white;
+    transition: var(--lak24-transition);
+}
+
+.lak24-chat-toggle.active svg.icon-chat {
+    display: none;
+}
+
+.lak24-chat-toggle:not(.active) svg.icon-close {
+    display: none;
+}
+
+/* Notification badge */
+.lak24-chat-toggle .badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 20px;
+    height: 20px;
+    background: #ea4335;
+    border-radius: 50%;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: lak24-pulse 2s infinite;
+}
+
+@keyframes lak24-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.15); opacity: 0.8; }
+}
+
+/* ─── Chat Window Container ────────────────────────────────────── */
+.lak24-chat-window {
+    position: fixed;
+    bottom: 100px;
+    right: 24px;
+    width: var(--lak24-chat-width);
+    height: var(--lak24-chat-height);
+    max-height: calc(100vh - 130px);
+    background: var(--lak24-bg);
+    border-radius: var(--lak24-radius);
+    box-shadow: var(--lak24-shadow);
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-family: var(--lak24-font);
+    direction: rtl;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(20px) scale(0.95);
+    transition: var(--lak24-transition);
+}
+
+.lak24-chat-window.open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+/* ─── Chat Header ───────────────────────────────────────────────── */
+.lak24-chat-header {
+    background: linear-gradient(135deg, var(--lak24-primary), var(--lak24-primary-dark));
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.lak24-chat-header .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.lak24-chat-header .info {
+    flex: 1;
+}
+
+.lak24-chat-header .name {
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.lak24-chat-header .status {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 12px;
+    margin: 2px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.lak24-chat-header .status .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--lak24-accent);
+    display: inline-block;
+    animation: lak24-pulse 2s infinite;
+}
+
+.lak24-chat-header .actions {
+    display: flex;
+    gap: 8px;
+}
+
+.lak24-chat-header .actions button {
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--lak24-transition);
+    color: white;
+    font-size: 14px;
+}
+
+.lak24-chat-header .actions button:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* ─── Chat Messages Area ────────────────────────────────────────── */
+.lak24-chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scroll-behavior: smooth;
+}
+
+.lak24-chat-messages::-webkit-scrollbar {
+    width: 4px;
+}
+
+.lak24-chat-messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.lak24-chat-messages::-webkit-scrollbar-thumb {
+    background: var(--lak24-border);
+    border-radius: 4px;
+}
+
+/* ─── Message Bubbles ───────────────────────────────────────────── */
+.lak24-message {
+    display: flex;
+    gap: 8px;
+    max-width: 85%;
+    animation: lak24-fadeIn 0.3s ease;
+}
+
+@keyframes lak24-fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.lak24-message.user {
+    align-self: flex-start;
+    flex-direction: row;
+}
+
+.lak24-message.bot {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+}
+
+.lak24-message .bubble {
+    padding: 12px 16px;
+    border-radius: var(--lak24-radius-sm);
+    line-height: 1.6;
+    font-size: 14px;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    position: relative;
+}
+
+.lak24-message.user .bubble {
+    background: var(--lak24-user-bubble);
+    color: var(--lak24-user-text);
+    border-top-right-radius: 4px;
+}
+
+.lak24-message.bot .bubble {
+    background: var(--lak24-bot-bubble);
+    color: var(--lak24-bot-text);
+    border-top-left-radius: 4px;
+    box-shadow: var(--lak24-shadow-sm);
+}
+
+.lak24-message .bubble .time {
+    display: block;
+    font-size: 10px;
+    margin-top: 6px;
+    opacity: 0.6;
+}
+
+.lak24-message.user .bubble .time {
+    text-align: left;
+}
+
+.lak24-message.bot .bubble .time {
+    text-align: right;
+}
+
+/* Bot avatar */
+.lak24-message.bot .msg-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--lak24-primary-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    align-self: flex-end;
+}
+
+/* ─── Markdown Rendering in Messages ────────────────────────────── */
+.lak24-message .bubble strong,
+.lak24-message .bubble b {
+    font-weight: 600;
+}
+
+.lak24-message .bubble a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.lak24-message.bot .bubble a {
+    color: var(--lak24-primary);
+}
+
+.lak24-message .bubble code {
+    background: rgba(0, 0, 0, 0.06);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: 'Courier New', monospace;
+}
+
+/* ─── Offer Cards ───────────────────────────────────────────────── */
+.lak24-offer-card {
+    background: var(--lak24-surface);
+    border: 1px solid var(--lak24-border);
+    border-radius: var(--lak24-radius-sm);
+    padding: 12px;
+    margin: 8px 0;
+    transition: var(--lak24-transition);
+}
+
+.lak24-offer-card:hover {
+    border-color: var(--lak24-primary);
+    box-shadow: var(--lak24-shadow-sm);
+}
+
+.lak24-offer-card .offer-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.lak24-offer-card .offer-price {
+    color: var(--lak24-accent);
+    font-weight: 700;
+    font-size: 16px;
+}
+
+.lak24-offer-card .offer-source {
+    color: var(--lak24-text-secondary);
+    font-size: 12px;
+    margin-top: 4px;
+}
+
+.lak24-offer-card .offer-link {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 6px 14px;
+    background: var(--lak24-primary-light);
+    color: var(--lak24-primary);
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: var(--lak24-transition);
+}
+
+.lak24-offer-card .offer-link:hover {
+    background: var(--lak24-primary);
+    color: white;
+}
+
+/* ─── Typing Indicator ──────────────────────────────────────────── */
+.lak24-typing {
+    display: flex;
+    gap: 8px;
+    align-self: flex-end;
+    flex-direction: row-reverse;
+    max-width: 85%;
+}
+
+.lak24-typing .msg-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--lak24-primary-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    align-self: flex-end;
+}
+
+.lak24-typing .dots {
+    background: var(--lak24-bot-bubble);
+    padding: 12px 18px;
+    border-radius: var(--lak24-radius-sm);
+    border-top-left-radius: 4px;
+    box-shadow: var(--lak24-shadow-sm);
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.lak24-typing .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--lak24-text-secondary);
+    animation: lak24-bounce 1.4s infinite ease-in-out;
+}
+
+.lak24-typing .dot:nth-child(1) { animation-delay: 0s; }
+.lak24-typing .dot:nth-child(2) { animation-delay: 0.2s; }
+.lak24-typing .dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes lak24-bounce {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+    40% { transform: translateY(-6px); opacity: 1; }
+}
+
+/* ─── File Upload Area ──────────────────────────────────────────── */
+.lak24-upload-preview {
+    background: var(--lak24-primary-light);
+    border: 1px solid var(--lak24-border);
+    border-radius: var(--lak24-radius-sm);
+    padding: 10px 14px;
+    margin: 0 16px 8px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    animation: lak24-fadeIn 0.3s ease;
+}
+
+.lak24-upload-preview.visible {
+    display: flex;
+}
+
+.lak24-upload-preview .file-icon {
+    font-size: 24px;
+}
+
+.lak24-upload-preview .file-info {
+    flex: 1;
+}
+
+.lak24-upload-preview .file-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--lak24-text);
+}
+
+.lak24-upload-preview .file-size {
+    font-size: 11px;
+    color: var(--lak24-text-secondary);
+}
+
+.lak24-upload-preview .remove-file {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    color: var(--lak24-text-secondary);
+    padding: 4px;
+    border-radius: 50%;
+    transition: var(--lak24-transition);
+}
+
+.lak24-upload-preview .remove-file:hover {
+    background: rgba(0, 0, 0, 0.08);
+    color: #ea4335;
+}
+
+/* ─── Drag & Drop Overlay ───────────────────────────────────────── */
+.lak24-drop-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(26, 115, 232, 0.9);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    border-radius: var(--lak24-radius);
+    flex-direction: column;
+    gap: 12px;
+}
+
+.lak24-drop-overlay.visible {
+    display: flex;
+}
+
+.lak24-drop-overlay .drop-icon {
+    font-size: 48px;
+}
+
+.lak24-drop-overlay .drop-text {
+    color: white;
+    font-size: 16px;
+    font-weight: 500;
+    font-family: var(--lak24-font);
+}
+
+/* ─── Chat Input Area ───────────────────────────────────────────── */
+.lak24-chat-input {
+    padding: 12px 16px;
+    background: var(--lak24-surface);
+    border-top: 1px solid var(--lak24-border);
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    flex-shrink: 0;
+}
+
+.lak24-chat-input .input-wrapper {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    background: var(--lak24-bg);
+    border-radius: 24px;
+    padding: 4px 4px 4px 16px;
+    border: 1px solid var(--lak24-border);
+    transition: var(--lak24-transition);
+}
+
+.lak24-chat-input .input-wrapper:focus-within {
+    border-color: var(--lak24-primary);
+    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+}
+
+.lak24-chat-input textarea {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: var(--lak24-font);
+    font-size: 14px;
+    color: var(--lak24-text);
+    resize: none;
+    max-height: 120px;
+    line-height: 1.5;
+    padding: 8px 0;
+    direction: rtl;
+}
+
+.lak24-chat-input textarea::placeholder {
+    color: var(--lak24-text-secondary);
+}
+
+.lak24-chat-input .btn-attach {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    color: var(--lak24-text-secondary);
+    border-radius: 50%;
+    transition: var(--lak24-transition);
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.lak24-chat-input .btn-attach:hover {
+    background: var(--lak24-primary-light);
+    color: var(--lak24-primary);
+}
+
+.lak24-chat-input .btn-send {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--lak24-primary);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--lak24-transition);
+    flex-shrink: 0;
+}
+
+.lak24-chat-input .btn-send:hover {
+    background: var(--lak24-primary-dark);
+    transform: scale(1.05);
+}
+
+.lak24-chat-input .btn-send:disabled {
+    background: var(--lak24-border);
+    cursor: not-allowed;
+    transform: none;
+}
+
+.lak24-chat-input .btn-send svg {
+    width: 18px;
+    height: 18px;
+    fill: white;
+    transform: rotate(180deg);
+}
+
+/* Hidden file input */
+.lak24-chat-input input[type="file"] {
+    display: none;
+}
+
+/* ─── Quick Action Suggestions ──────────────────────────────────── */
+.lak24-suggestions {
+    padding: 8px 16px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.lak24-suggestions .chip {
+    padding: 6px 14px;
+    background: var(--lak24-primary-light);
+    color: var(--lak24-primary);
+    border: 1px solid transparent;
+    border-radius: 20px;
+    font-size: 12px;
+    font-family: var(--lak24-font);
+    cursor: pointer;
+    transition: var(--lak24-transition);
+    white-space: nowrap;
+    direction: rtl;
+}
+
+.lak24-suggestions .chip:hover {
+    background: var(--lak24-primary);
+    color: white;
+}
+
+/* ─── Welcome Message ───────────────────────────────────────────── */
+.lak24-welcome {
+    text-align: center;
+    padding: 24px 20px;
+}
+
+.lak24-welcome .welcome-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+.lak24-welcome .welcome-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--lak24-text);
+    margin-bottom: 8px;
+}
+
+.lak24-welcome .welcome-text {
+    font-size: 14px;
+    color: var(--lak24-text-secondary);
+    line-height: 1.6;
+    white-space: pre-line;
+}
+
+/* ─── Error Message ─────────────────────────────────────────────── */
+.lak24-error {
+    background: #fce8e6;
+    color: #c5221f;
+    padding: 10px 16px;
+    border-radius: var(--lak24-radius-sm);
+    font-size: 13px;
+    margin: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ─── Responsive ────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+    .lak24-chat-window {
+        bottom: 0;
+        right: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        max-height: 100vh;
+        border-radius: 0;
+    }
+
+    .lak24-chat-toggle {
+        bottom: 16px;
+        right: 16px;
+        width: 56px;
+        height: 56px;
+    }
+}
+
+@media (min-width: 481px) and (max-width: 768px) {
+    .lak24-chat-window {
+        width: calc(100vw - 48px);
+        max-width: 420px;
+    }
+}
