@@ -6,8 +6,7 @@
  * Requires API key authentication via X-API-Key header.
  * 
  * Endpoints:
- *   POST /api.php?action=chat      — Send message, get response
- *   POST /api.php?action=upload    — Upload file for translation
+ *   POST /api.php?action=chat      — Send message and/or upload file for translation
  *   GET  /api.php?action=history   — Get conversation history
  *   POST /api.php?action=clear     — Clear conversation history
  *   GET  /api.php?action=welcome   — Get welcome message & config
@@ -75,11 +74,7 @@ $action = $_GET['action'] ?? '';
 
 switch ($action) {
     case 'chat':
-        handleChat($config, $chatgpt, $sessions, $guard, $search, $logger);
-        break;
-
-    case 'upload':
-        handleUpload($config, $chatgpt, $sessions, $guard, $processor, $logger);
+        handleChat($config, $chatgpt, $sessions, $guard, $search, $processor, $logger);
         break;
 
     case 'history':
@@ -97,27 +92,89 @@ switch ($action) {
     default:
         apiResponse(400, [
             'error'   => 'Invalid action',
-            'actions' => ['chat', 'upload', 'history', 'clear', 'welcome'],
+            'actions' => ['chat', 'history', 'clear', 'welcome'],
         ]);
 }
 
 // ─── Action Handlers ─────────────────────────────────────────────────
 
-function handleChat(array $config, ChatGPT $chatgpt, SessionManager $sessions, BotGuard $guard, OfferSearch $search, Logger $logger): void
+function handleChat(array $config, ChatGPT $chatgpt, SessionManager $sessions, BotGuard $guard, OfferSearch $search, FileProcessor $processor, Logger $logger): void
 {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         apiResponse(405, ['error' => 'POST required']);
     }
 
     $input = json_decode(file_get_contents('php://input'), true);
-
-    if (!$input || empty($input['message'])) {
-        apiResponse(400, ['error' => 'Message is required', 'example' => ['message' => 'أريد عروض تلفزيون', 'session_id' => 'optional-id']]);
+    if (!$input && !empty($_POST)) {
+        $input = $_POST;
     }
 
-    $userMessage = $guard->sanitizeInput($input['message']);
-    $sessionId   = $input['session_id'] ?? null;
+    $hasFile = !empty($_FILES['file']);
+    $userMessage = $input['message'] ?? '';
+    
+    if (!$input && !$hasFile) {
+        apiResponse(400, ['error' => 'Message or file is required', 'example' => ['message' => 'أريد عروض تلفزيون', 'session_id' => 'optional-id']]);
+    }
+    if (!$hasFile && empty($userMessage)) {
+        apiResponse(400, ['error' => 'Message is required when no file is uploaded']);
+    }
 
+    $userMessage = $guard->sanitizeInput($userMessage);
+    $sessionId   = $input['session_id'] ?? null;
+    $systemPrompt = file_get_contents($config['bot']['system_prompt']);
+    $session      = $sessions->getSession($sessionId);
+    $sessionId    = $session['id'];
+
+    if ($hasFile) {
+        $file = $_FILES['file'];
+        
+        $validation = $guard->validateUpload($file, $config['upload']);
+        if (!$validation['valid']) {
+            apiResponse(400, ['error' => $validation['error']]);
+        }
+
+        $processed = $processor->processUpload($file);
+        if (!$processed['success']) {
+            apiResponse(400, ['error' => $processed['error']]);
+        }
+
+        if (empty($userMessage)) {
+            $userMessage = 'قم بترجمة المحتوى من الألمانية إلى العربية.';
+        }
+
+        $sessions->addMessage($sessionId, 'user', "📄 ملف: {$file['name']}\n{$userMessage}");
+        $messages = $sessions->getMessagesForAPI($sessionId, $systemPrompt);
+
+        $result = null;
+        if ($processed['type'] === 'image') {
+            $result = $chatgpt->sendVisionMessage($messages, $processed['data'], $processed['mime'], $userMessage);
+        } elseif ($processed['type'] === 'text') {
+            $textContent = $processed['data'];
+            if (mb_strlen($textContent) > 15000) {
+                $textContent = mb_substr($textContent, 0, 15000) . "\n\n[... تم اقتطاع النص]";
+            }
+            $messages[] = ['role' => 'user', 'content' => $userMessage . "\n\n---\n\n" . $textContent];
+            $result = $chatgpt->sendMessage($messages);
+        }
+
+        if (!$result || (!$result['success'])) {
+            $logger->error('API translation failed', ['error' => $result['error'] ?? 'Unknown error']);
+            apiResponse(500, ['error' => 'فشلت الترجمة. يرجى المحاولة مرة أخرى.']);
+        }
+
+        $sessions->addMessage($sessionId, 'assistant', $result['message']);
+
+        apiResponse(200, [
+            'reply'      => $result['message'],
+            'session_id' => $sessionId,
+            'type'       => 'translation',
+            'filename'   => $file['name'],
+            'usage'      => $result['usage'] ?? [],
+        ]);
+        return;
+    }
+
+    // Normal Text Chat Flow
     if (empty(trim($userMessage))) {
         apiResponse(400, ['error' => 'Message cannot be empty']);
     }
@@ -131,10 +188,6 @@ function handleChat(array $config, ChatGPT $chatgpt, SessionManager $sessions, B
         ]);
     }
 
-    $systemPrompt = file_get_contents($config['bot']['system_prompt']);
-    $session      = $sessions->getSession($sessionId);
-    $sessionId    = $session['id'];
-
     $sessions->addMessage($sessionId, 'user', $userMessage);
 
     // Intent detection & offer search
@@ -143,7 +196,8 @@ function handleChat(array $config, ChatGPT $chatgpt, SessionManager $sessions, B
 
     if ($intent === 'offer_search') {
         $maxPrice = extractPriceFromMessage($userMessage);
-        $searchResults    = $search->search($userMessage, $maxPrice);
+        $germanKeyword = $chatgpt->extractProductKeyword($userMessage);
+        $searchResults    = $search->search($germanKeyword, $maxPrice);
         $formattedResults = $search->formatResultsForBot($searchResults);
         $enhancedMessage  = $userMessage . "\n\n[روابط البحث المباشر — استخدم هذه الروابط الحقيقية فقط ولا تخترع روابط من عندك]\n" . $formattedResults;
     }
@@ -167,67 +221,7 @@ function handleChat(array $config, ChatGPT $chatgpt, SessionManager $sessions, B
         'reply'      => $result['message'],
         'session_id' => $sessionId,
         'type'       => $intent,
-        'usage'      => $result['usage'],
-    ]);
-}
-
-function handleUpload(array $config, ChatGPT $chatgpt, SessionManager $sessions, BotGuard $guard, FileProcessor $processor, Logger $logger): void
-{
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        apiResponse(405, ['error' => 'POST required']);
-    }
-
-    if (empty($_FILES['file'])) {
-        apiResponse(400, ['error' => 'No file uploaded']);
-    }
-
-    $file      = $_FILES['file'];
-    $sessionId = $_POST['session_id'] ?? null;
-    $prompt    = $_POST['prompt'] ?? 'قم بترجمة المحتوى من الألمانية إلى العربية.';
-
-    $validation = $guard->validateUpload($file, $config['upload']);
-    if (!$validation['valid']) {
-        apiResponse(400, ['error' => $validation['error']]);
-    }
-
-    $systemPrompt = file_get_contents($config['bot']['system_prompt']);
-    $session      = $sessions->getSession($sessionId);
-    $sessionId    = $session['id'];
-
-    $processed = $processor->processUpload($file);
-
-    if (!$processed['success']) {
-        apiResponse(400, ['error' => $processed['error']]);
-    }
-
-    $sessions->addMessage($sessionId, 'user', "📄 ملف: {$file['name']}\n{$prompt}");
-    $messages = $sessions->getMessagesForAPI($sessionId, $systemPrompt);
-
-    $result = null;
-
-    if ($processed['type'] === 'image') {
-        $result = $chatgpt->sendVisionMessage($messages, $processed['data'], $processed['mime'], $prompt);
-    } elseif ($processed['type'] === 'text') {
-        $textContent = $processed['data'];
-        if (mb_strlen($textContent) > 15000) {
-            $textContent = mb_substr($textContent, 0, 15000) . "\n\n[... تم اقتطاع النص]";
-        }
-        $messages[] = ['role' => 'user', 'content' => $prompt . "\n\n---\n\n" . $textContent];
-        $result = $chatgpt->sendMessage($messages);
-    }
-
-    if (!$result || !$result['success']) {
-        apiResponse(500, ['error' => 'فشلت الترجمة. يرجى المحاولة مرة أخرى.']);
-    }
-
-    $sessions->addMessage($sessionId, 'assistant', $result['message']);
-
-    apiResponse(200, [
-        'reply'      => $result['message'],
-        'session_id' => $sessionId,
-        'type'       => 'translation',
-        'filename'   => $file['name'],
-        'usage'      => $result['usage'],
+        'usage'      => $result['usage'] ?? [],
     ]);
 }
 

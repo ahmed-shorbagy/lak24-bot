@@ -16,7 +16,6 @@
     // ─── Configuration ───────────────────────────────────────────
     const CONFIG = {
         chatEndpoint: './chat.php',
-        uploadEndpoint: './upload.php',
         maxFileSize: 10 * 1024 * 1024, // 10MB
         allowedTypes: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
         sessionKey: 'lak24_bot_session',
@@ -45,7 +44,6 @@
                 const url = new URL(s.src);
                 const base = url.href.replace(/assets\/js\/(chat|embed)\.js.*$/, '');
                 CONFIG.chatEndpoint = base + 'chat.php';
-                CONFIG.uploadEndpoint = base + 'upload.php';
                 break;
             }
         }
@@ -291,10 +289,10 @@
         const formData = new FormData();
         formData.append('file', selectedFile);
         formData.append('session_id', sessionId || '');
-        if (prompt) formData.append('prompt', prompt);
+        if (prompt) formData.append('message', prompt); // Changed from 'prompt' to 'message' to match chat.php
 
         try {
-            const response = await fetch(CONFIG.uploadEndpoint, {
+            const response = await fetch(CONFIG.chatEndpoint, {
                 method: 'POST',
                 body: formData,
             });

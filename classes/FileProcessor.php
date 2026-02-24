@@ -85,31 +85,19 @@ class FileProcessor
                     ];
                 }
 
-                // Method 4: Last resort — send the raw PDF as base64 to Vision API
-                // GPT-4o-mini can process PDF content when sent as a file
-                $rawData = file_get_contents($tmpPath);
-                if ($rawData !== false && strlen($rawData) > 0) {
-                    if ($this->logger) {
-                        $this->logger->info('PDF fallback: sending raw PDF to Vision API', [
-                            'filename' => $file['name'],
-                            'size'     => strlen($rawData),
-                        ]);
-                    }
-                    return [
-                        'success'  => true,
-                        'type'     => 'image',
-                        'data'     => base64_encode($rawData),
-                        'mime'     => 'application/pdf',
+                // Error: We couldn't parse it in PHP, and we have no Ghostscript to convert it to image.
+                // We cannot send raw PDFs to OpenAI Vision API (it only accepts JPEG/PNG/WEBP).
+                if ($this->logger) {
+                    $this->logger->warning('PDF fallback: Server lacks pdftotext/Ghostscript to process this PDF', [
                         'filename' => $file['name'],
-                        'error'    => null,
-                    ];
+                    ]);
                 }
-
+                
                 return [
                     'success' => false,
                     'type'    => 'pdf',
                     'data'    => null,
-                    'error'   => 'لم نتمكن من قراءة محتوى هذا الملف. يرجى المحاولة بملف آخر أو التقاط صورة للمستند.',
+                    'error'   => 'عذراً، الخادم الحالي لا يدعم قراءة هذا النوع من ملفات PDF المعقدة. يرجى أخذ لقطة شاشة (Screenshot) للنص ورفعها كصورة بدلاً من ذلك.',
                 ];
             }
 

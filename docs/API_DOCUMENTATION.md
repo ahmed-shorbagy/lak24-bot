@@ -25,25 +25,29 @@ Authorization: Bearer YOUR_API_KEY_HERE
 
 ## Endpoints
 
-### 1. Send Chat Message
+### 1. Send Chat Message or File
 
 **`POST /api.php?action=chat`**
 
-Send a text message and receive the bot's response.
+Send a text message, or upload a PDF/Image file for translation, and receive the bot's response.
 
-#### Request Body
+#### Request Body (multipart/form-data OR application/json)
 
-```json
-{
-    "message": "أريد عروض تلفزيون بأقل من 500 يورو",
-    "session_id": "optional-session-id"
-}
-```
+If sending just text, `application/json` is supported.
+If sending a file, you MUST use `multipart/form-data`.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `message` | string | ✅ | User's message text |
+| `message` | string | ✅* | User's message text (*Required if `file` is not provided) |
+| `file` | file | ✅* | PDF or image file (max 10MB) (*Required if `message` is not provided) |
 | `session_id` | string | ❌ | Existing session ID for conversation continuity. If omitted, a new session is created. |
+
+#### Supported File Types
+
+| Type | Extensions | Max Size |
+|------|-----------|----------|
+| PDF | `.pdf` | 10MB |
+| Images | `.jpg`, `.jpeg`, `.png`, `.webp` | 10MB |
 
 #### Success Response (200)
 
@@ -52,6 +56,7 @@ Send a text message and receive the bot's response.
     "reply": "بالطبع! سأبحث لك عن أفضل عروض التلفزيون بأقل من 500 يورو...",
     "session_id": "a1b2c3d4e5f6...",
     "type": "offer_search",
+    "filename": "optional_filename.pdf",
     "usage": {
         "prompt_tokens": 150,
         "completion_tokens": 200,
@@ -65,9 +70,10 @@ Send a text message and receive the bot's response.
 | `reply` | string | Bot's response text (may contain Markdown) |
 | `session_id` | string | Session ID — save and send with subsequent requests |
 | `type` | string | Intent type: `offer_search`, `translation`, `writing`, or `unknown` |
+| `filename` | string | Name of the file uploaded (if any) |
 | `usage` | object | Token usage statistics |
 
-#### cURL Example
+#### cURL Example (Text)
 
 ```bash
 curl -X POST "https://your-domain.com/lak24_bot/api.php?action=chat" \
@@ -76,58 +82,19 @@ curl -X POST "https://your-domain.com/lak24_bot/api.php?action=chat" \
   -d '{"message": "أريد عروض تلفزيون", "session_id": null}'
 ```
 
----
-
-### 2. Upload File for Translation
-
-**`POST /api.php?action=upload`**
-
-Upload a PDF or image file for translation.
-
-#### Request Body (multipart/form-data)
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `file` | file | ✅ | PDF or image file (max 10MB) |
-| `session_id` | string | ❌ | Session ID |
-| `prompt` | string | ❌ | Custom translation instruction (default: German → Arabic) |
-
-#### Supported File Types
-
-| Type | Extensions | Max Size |
-|------|-----------|----------|
-| PDF | `.pdf` | 10MB |
-| Images | `.jpg`, `.jpeg`, `.png`, `.webp` | 10MB |
-
-#### Success Response (200)
-
-```json
-{
-    "reply": "📄 **النص الأصلي:**\n\nSehr geehrte Damen und Herren...\n\n📝 **الترجمة:**\n\nالسيدات والسادة الأعزاء...",
-    "session_id": "a1b2c3d4e5f6...",
-    "type": "translation",
-    "filename": "brief.pdf",
-    "usage": {
-        "prompt_tokens": 500,
-        "completion_tokens": 400,
-        "total_tokens": 900
-    }
-}
-```
-
-#### cURL Example
+#### cURL Example (File via Form-Data)
 
 ```bash
-curl -X POST "https://your-domain.com/lak24_bot/api.php?action=upload" \
+curl -X POST "https://your-domain.com/lak24_bot/api.php?action=chat" \
   -H "X-API-Key: YOUR_API_KEY" \
   -F "file=@document.pdf" \
   -F "session_id=a1b2c3d4e5f6" \
-  -F "prompt=ترجم هذا المستند من الألمانية إلى العربية"
+  -F "message=ترجم هذا المستند من الألمانية إلى العربية"
 ```
 
 ---
 
-### 3. Get Conversation History
+### 2. Get Conversation History
 
 **`GET /api.php?action=history&session_id=SESSION_ID`**
 
@@ -162,7 +129,7 @@ Retrieve the message history for a session.
 
 ---
 
-### 4. Clear Conversation
+### 3. Clear Conversation
 
 **`POST /api.php?action=clear`**
 
@@ -188,7 +155,7 @@ Clear the message history for a session.
 
 ---
 
-### 5. Get Welcome Info
+### 4. Get Welcome Info
 
 **`GET /api.php?action=welcome`**
 
@@ -247,7 +214,7 @@ All errors return a JSON object with an `error` field:
    → Save session_id from response
    → Display reply
 
-3. User uploads file → POST /api.php?action=upload
+3. User uploads file → POST /api.php?action=chat
    → Send file + session_id via multipart/form-data
    → Display translated text
 

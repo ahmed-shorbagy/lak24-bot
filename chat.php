@@ -46,30 +46,120 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     jsonResponse(405, ['error' => 'Method not allowed']);
 }
 
-// Apply CORS
-$guard->setCORSHeaders($config['api']['cors']);
+// Parse request body (Support both JSON and Form Data)
+$input = json_decode(file_get_contents('php://input'), true);
 
-// Rate limiting
+// If not JSON, try standard POST array
+if (!$input && !empty($_POST)) {
+    $input = $_POST;
+}
+
+$hasFile = !empty($_FILES['file']);
+$userMessage = $input['message'] ?? '';
+
+if (!$input && !$hasFile) {
+    jsonResponse(400, ['error' => 'Message or file is required']);
+}
+if (!$hasFile && empty($userMessage)) {
+    jsonResponse(400, ['error' => 'Message is required when no file is uploaded']);
+}
+
+// Rate limiting check
 $rateCheck = $guard->checkRateLimit();
 if (!$rateCheck['allowed']) {
     jsonResponse(429, [
-        'error'    => detectLanguage($input['message'] ?? '') === 'ar' 
+        'error'    => detectLanguage($userMessage) === 'ar' 
             ? 'تم تجاوز الحد الأقصى للطلبات. يرجى المحاولة بعد قليل.'
             : 'Too many requests. Please try again shortly.',
         'reset_at' => $rateCheck['reset_at'],
     ]);
 }
 
-// Parse request body
-$input = json_decode(file_get_contents('php://input'), true);
-
-if (!$input || empty($input['message'])) {
-    jsonResponse(400, ['error' => 'Message is required']);
-}
-
-$userMessage = $guard->sanitizeInput($input['message']);
+$userMessage = $guard->sanitizeInput($userMessage);
 $sessionId   = $input['session_id'] ?? null;
 $useStream   = $input['stream'] ?? false;
+$systemPrompt = file_get_contents($config['bot']['system_prompt']);
+
+// Get or create session
+$session   = $sessions->getSession($sessionId);
+$sessionId = $session['id'];
+
+// ==========================================
+// HANDLE FILE UPLOADS
+// ==========================================
+if ($hasFile) {
+    $file      = $_FILES['file'];
+    $processor = new FileProcessor($config['upload'], $logger);
+    
+    // Validate the upload
+    $validation = $guard->validateUpload($file, $config['upload']);
+    if (!$validation['valid']) {
+        jsonResponse(400, ['error' => $validation['error']]);
+    }
+    
+    // Process the file
+    $processed = $processor->processUpload($file);
+    if (!$processed['success']) {
+        $logger->error('File processing failed', [
+            'filename' => $file['name'],
+            'error'    => $processed['error'],
+        ]);
+        jsonResponse(400, ['error' => $processed['error']]);
+    }
+    
+    if (empty($userMessage)) {
+        $userMessage = 'قم بترجمة المحتوى التالي من الألمانية إلى العربية. اعرض النص الأصلي أولاً ثم الترجمة. إذا كان النص بلغة أخرى غير الألمانية، قم بترجمته أيضاً.';
+    }
+    
+    // Add user message about the file upload
+    $sessions->addMessage($sessionId, 'user', "📄 تم رفع ملف: {$file['name']}\n{$userMessage}");
+    $messages = $sessions->getMessagesForAPI($sessionId, $systemPrompt);
+    $result = null;
+
+    if ($processed['type'] === 'image') {
+        // Use Vision API for images
+        $result = $chatgpt->sendVisionMessage(
+            $messages,
+            $processed['data'],
+            $processed['mime'],
+            $userMessage
+        );
+    } elseif ($processed['type'] === 'text') {
+        // PDF text extracted — send as regular message
+        $textContent = $processed['data'];
+        if (mb_strlen($textContent) > 15000) {
+            $textContent = mb_substr($textContent, 0, 15000) . "\n\n[... تم اقتطاع النص بسبب الطول]";
+        }
+        $messages[] = [
+            'role'    => 'user',
+            'content' => $userMessage . "\n\n---\n\n" . $textContent,
+        ];
+        $result = $chatgpt->sendMessage($messages);
+    }
+
+    if (!$result || !$result['success']) {
+        $error = $result['error'] ?? 'Unknown error';
+        $logger->error('Translation API failed', ['error' => $error]);
+        jsonResponse(500, [
+            'error'      => 'عذراً، حدث خطأ أثناء ترجمة الملف. يرجى المحاولة مرة أخرى.',
+            'session_id' => $sessionId,
+        ]);
+    }
+
+    $reply = $result['message'];
+    $sessions->addMessage($sessionId, 'assistant', $reply);
+
+    jsonResponse(200, [
+        'reply'      => $reply,
+        'session_id' => $sessionId,
+        'type'       => 'translation',
+        'filename'   => $file['name'],
+        'usage'      => $result['usage'] ?? [],
+    ]);
+}
+// ==========================================
+// END FILE UPLOADS
+// ==========================================
 
 if (empty(trim($userMessage))) {
     jsonResponse(400, ['error' => 'Message cannot be empty']);
