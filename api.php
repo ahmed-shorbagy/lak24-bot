@@ -420,7 +420,16 @@ function detectIntent(string $text): string
         return 'deals';
     }
 
-    if (preg_match('/\b(ألمانيا|المانيا|deutschland|germany|visa|إقامة|اقامة|سكن|تأمين|عمل|job|live)\b/u', $t)) {
+    if (preg_match('/\b(ألمانيا|المانيا|المانية|الالمانية|deutschland|germany|german'
+        . '|berlin|برلين|hamburg|هامبورج|هامبورغ|münchen|munich|ميونخ|ميونيخ'
+        . '|frankfurt|فرانكفورت|köln|كولن|كولونيا|düsseldorf|دوسلدورف|stuttgart|شتوتغارت'
+        . '|hannover|هانوفر|bremen|بريمن|dresden|دريسدن|leipzig|لايبزيغ|nürnberg|نورنبرغ'
+        . '|dortmund|دورتموند|essen|إيسن|bonn|بون|aachen|آخن|freiburg|فرايبورغ'
+        . '|اين|أين|تقع|مدينة|ولاية|مقاطعة|منطقة'
+        . '|visa|فيزا|إقامة|اقامة|سكن|تأمين|عمل|job|live|arbeiten|wohnen|studieren'
+        . '|aufenthalt|niederlassung|einbürgerung|جنسية|تجنس|لجوء|asyl'
+        . '|schule|مدرسة|جامعة|universität|kindergeld|kindergarten'
+        . ')\b/u', $t)) {
         return 'life_de';
     }
 
