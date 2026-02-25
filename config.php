@@ -16,7 +16,7 @@ return [
 
     // ─── OpenAI Configuration ────────────────────────────────────────
     'openai' => [
-        'api_key'     => 'sk-proj-YOUR_OPENAI_API_KEY_HERE',
+        'api_key'     => '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',
 
         // Default model (router in your backend can override per request)
         'model'       => 'gpt-5-mini',
