@@ -1,0 +1,24 @@
+# Ignore database and cache files to prevent GitHub file size limits and secure local data
+/data/*.db
+/data/*.csv
+/data/*.gz
+/cache/*
+!/cache/.gitkeep
+/logs/*
+!/logs/.gitkeep
+/sessions/*
+!/sessions/.gitkeep
+/uploads/*
+!/uploads/.gitkeep
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore IDE files
+.idea/
+.vscode/
+
+# Ignore debug scripts
+debug_*.php
+test_*.php
