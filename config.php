@@ -16,8 +16,7 @@ return [
 
     // ─── OpenAI Configuration ────────────────────────────────────────
     'openai' => [
-        // Obfuscated to bypass GitHub secret scanning (concatenated at runtime)
-        'api_key'     => 'sk-proj-' . '9FqB03AGiwJPLqLvyjgMOEDoE_uIvbUdO5ymGKzp-s-g2DaKyi0tdorXDNL858h2dwHKv6ZK3ZT3BlbkFJipZplpvun5Ae7KDbBo4cdMqehFQRcBaHApuy383iKhdTEMAzjp8tRJqTzo8R-4c7CB85j1l5oA',
+        'api_key'     => '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',
 
         // Default model (router in your backend can override per request)
         'model'       => 'gpt-5-mini',
