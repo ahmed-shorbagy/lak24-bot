@@ -108,7 +108,7 @@ if ($hasFile) {
     }
     
     if (empty($userMessage)) {
-        $userMessage = 'قم بترجمة المحتوى التالي من الألمانية إلى العربية. اعرض النص الأصلي أولاً ثم الترجمة. إذا كان النص بلغة أخرى غير الألمانية، قم بترجمته أيضاً.';
+        $userMessage = 'Translate the following content accurately based on the detected language and the user context.';
     }
     
     // Add user message about the file upload
@@ -127,12 +127,21 @@ if ($hasFile) {
     } elseif ($processed['type'] === 'text') {
         // PDF text extracted — send as regular message
         $textContent = $processed['data'];
+        $pageCount   = $processed['page_count'] ?? 'unknown';
+
         if (mb_strlen($textContent) > 15000) {
             $textContent = mb_substr($textContent, 0, 15000) . "\n\n[... تم اقتطاع النص بسبب الطول]";
         }
+
+        // Inject document metadata to make the bot aware of the scope
+        $metadataHeader = "[DOCUMENT METADATA]\n";
+        $metadataHeader .= "Filename: {$file['name']}\n";
+        $metadataHeader .= "Total Pages: {$pageCount}\n";
+        $metadataHeader .= "Note: The text below contains all pages joined with markers.\n\n";
+
         $messages[] = [
             'role'    => 'user',
-            'content' => $userMessage . "\n\n---\n\n" . $textContent,
+            'content' => $metadataHeader . "USER INSTRUCTIONS: " . $userMessage . "\n\nFILE CONTENT TO TRANSLATE:\n" . $textContent,
         ];
         $result = $chatgpt->sendMessage($messages);
     }
@@ -188,14 +197,15 @@ if ($systemPrompt === false) {
 $session   = $sessions->getSession($sessionId);
 $sessionId = $session['id'];
 
-// Add user message to session
-$sessions->addMessage($sessionId, 'user', $userMessage);
+// (Message will be added to session later after intent analysis)
 
 // Analyze intent for potential offer search
 $intent = $chatgpt->analyzeIntent($userMessage);
 
 // If intent is offer_search, translate query to German and generate proper links
 $enhancedMessage = $userMessage;
+$userLang = detectLanguage($userMessage);
+
 if ($intent === 'offer_search') {
     // Extract price if mentioned
     $maxPrice = extractPrice($userMessage);
@@ -203,65 +213,74 @@ if ($intent === 'offer_search') {
     // CRITICAL: Translate user's query to German product keywords
     // This prevents Arabic text from being used in Amazon/eBay URLs
     $germanKeyword = $chatgpt->extractProductKeyword($userMessage);
+    $searchVariants = $chatgpt->getSearchVariants($germanKeyword);
 
     $logger->info('Offer search triggered', [
         'original'  => $userMessage,
         'keyword'   => $germanKeyword,
-        'max_price' => $maxPrice
+        'max_price' => $maxPrice,
+        'variants'  => count($searchVariants)
     ]);
 
     // 1. Perform actual search (lak24, Amazon, Awin) using the GERMAN keyword
-    $searchResults = $search->search($germanKeyword, $maxPrice);
+    $searchResults = $search->search($germanKeyword, $maxPrice, '', $searchVariants);
     
     // 2. Generate general search links using the GERMAN keyword
     $searchLinks = $search->generateSearchLinks($germanKeyword, $maxPrice);
 
     // Format the results for GPT to use
-    // IMPORTANT: Use English for internal instructions to avoid biasing GPT's response language
-    $linksText  = "\n\n[SYSTEM NOTE — Use ONLY these real results/links. Do NOT invent any others.]\n";
+    $header = $userLang === 'ar' ? 'ملاحظة للنظام — استخدم هذه الروابط الحقيقية فقط' : 'SYSTEM NOTE — Use ONLY these real results/links';
+    $linksText  = "\n\n[{$header}]\n";
     $linksText .= "Search keyword used: {$germanKeyword}\n";
     if ($maxPrice !== null) {
         $linksText .= "Max budget: {$maxPrice} EUR\n";
     }
 
     if (!empty($searchResults['results'])) {
-        $linksText .= "\nFound specific product matches:\n";
+        $linksText .= $userLang === 'ar' ? "\nتم العثور على المنتجات التالية:\n" : "\nFound specific product matches:\n";
         $linksText .= $search->formatResultsForBot($searchResults);
     }
 
-    $linksText .= "\nDirect search category links:\n";
+    $linksText .= $userLang === 'ar' ? "\nروابط البحث المباشر:\n" : "\nDirect search category links:\n";
     foreach ($searchLinks as $link) {
         $linksText .= "• {$link['icon']} [{$link['name']}]({$link['url']})\n";
     }
 
     $linksText .= "\nIMPORTANT INSTRUCTIONS FOR YOUR REPLY:\n";
-    $linksText .= "1. You MUST reply in the EXACT SAME LANGUAGE the user wrote their message in.\n";
+    if ($userLang === 'ar') {
+        $linksText .= "1. يجب أن يكون ردك باللغة العربية حصراً.\n";
+    } else {
+        $linksText .= "1. You MUST reply in ENGLISH only.\n";
+    }
     $linksText .= "2. Present the specific products found (if any) and the direct search links clearly.\n";
-    $linksText .= "3. Highlight the BEST VALUE option (cheapest or best deal). If a product exceeds the user's budget, warn them.\n";
-    $linksText .= "4. If NO specific products were found, suggest alternative search terms or related categories — never just say 'no results'.\n";
+    $linksText .= "3. Highlight the BEST VALUE option. If a product exceeds the user's budget, warn them.\n";
+    $linksText .= "4. If NO specific products were found, suggest alternative search terms — never just say 'no results'.\n";
     $linksText .= "5. Do NOT invent or hallucinate any other products or links.";
 
     $enhancedMessage = $userMessage . $linksText;
 } elseif ($intent === 'contract_search') {
     $logger->info('Contract search triggered', ['original' => $userMessage]);
     
-    $linksText  = "\n\n[SYSTEM NOTE — The user is looking for a service/subscription contract (e.g. Internet, Electricity, Gas, Travel, Insurance).]\n";
+    $linksText  = "\n\n[SYSTEM NOTE — The user is looking for a service/subscription contract.]\n";
     $linksText .= "IMPORTANT INSTRUCTIONS FOR YOUR REPLY:\n";
-    $linksText .= "1. You MUST provide the specific lak24.de category link from your SYSTEM PROMPT RULES (e.g. category_id=82 for Electricity or 121 for Travel).\n";
-    $linksText .= "2. You MUST reply in the EXACT SAME LANGUAGE the user wrote their message in. If the user wrote in English, reply in English. If Arabic, reply in Arabic.\n";
+    $linksText .= "1. You MUST provide the specific lak24.de category link from your SYSTEM PROMPT RULES.\n";
+    if ($userLang === 'ar') {
+        $linksText .= "2. يجب أن يكون ردك باللغة العربية حصراً.\n";
+    } else {
+        $linksText .= "2. You MUST reply in ENGLISH only.\n";
+    }
     $linksText .= "3. Do NOT invent or hallucinate any other products or links. Do NOT suggest physical items.";
     
     $enhancedMessage = $userMessage . $linksText;
 }
 
+// Add user message to session (including search enhancements if any)
+$sessions->addMessage($sessionId, 'user', $enhancedMessage);
+
 // Prepare messages for API
 $messages = $sessions->getMessagesForAPI($sessionId, $systemPrompt);
 
-// Replace last user message with enhanced version if we have search results
-if ($enhancedMessage !== $userMessage) {
-    $lastIdx = count($messages) - 1;
-    $messages[$lastIdx] = ['role' => 'user', 'content' => $enhancedMessage];
-}
+// (The manual replacement below is no longer needed since we used $enhancedMessage in addMessage)
 
 // Send to GPT (streaming or regular)
 if ($useStream) {

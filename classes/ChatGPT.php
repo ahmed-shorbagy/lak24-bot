@@ -210,6 +210,7 @@ Categories:
 - contract_search: User wants service contracts or subscriptions (electricity, gas, internet, DSL, insurance, car rental, travel offers, mobile contracts, SIM cards)
 - translation: User wants text translated between languages
 - writing: User wants help writing documents (emails, CVs, cover letters, applications, formal letters)
+- follow_up: Short questions, clarifications, or replies that depend on previous context (e.g., "why?", "tell me more", "explain this", "?what", "how so?", "show me more")
 - general: General questions about life in Germany, legal advice, jobs, studying, or anything else
 
 Examples:
@@ -220,6 +221,9 @@ Examples:
 "عقد كهرباء" → contract_search
 "ترجم هذا النص" → translation
 "اكتب لي ايميل" → writing
+"؟ماذا" → follow_up
+"why?" → follow_up
+"tell me more" → follow_up
 "كيف احصل على تأشيرة" → general
 "What is Anmeldung?" → general'
             ],
@@ -239,7 +243,7 @@ Examples:
             $intent = strtolower(trim($result['message']));
             $intent = preg_replace('/[^a-z_]/', '', $intent);
 
-            $validIntents = ['offer_search', 'contract_search', 'translation', 'writing', 'general'];
+            $validIntents = ['offer_search', 'contract_search', 'translation', 'writing', 'follow_up', 'general'];
             
             if (in_array($intent, $validIntents)) {
                 if ($this->logger) {
@@ -276,12 +280,14 @@ Examples:
 
         $translationKw = ['ترجم', 'ترجمة', 'translate', 'übersetzen'];
         $writingKw = ['اكتب', 'كتابة', 'email', 'write', 'schreiben', 'bewerbung', 'lebenslauf'];
+        $followupKw = ['ماذا', 'لماذا', 'كيف', 'وضح', 'فسر', 'شرح', 'المزيد', '؟', '?', 'what', 'why', 'how', 'explain', 'more', 'describe'];
 
         $scores = [
             'contract_search' => $this->matchKeywords($msg, $contractKw),
             'offer_search'    => $this->matchKeywords($msg, $offerKw),
             'translation'     => $this->matchKeywords($msg, $translationKw),
             'writing'         => $this->matchKeywords($msg, $writingKw),
+            'follow_up'       => $this->matchKeywords($msg, $followupKw),
         ];
 
         $max = max($scores);
@@ -320,18 +326,19 @@ Examples:
         $messages = [
             [
             'role'    => 'system',
-            'content' => 'You are a strict product keyword extractor. Given a user message in ANY language, extract ONLY the bare core product/item noun and translate it to German. 
+            'content' => 'You are a strict product keyword extractor for a German comparison site. Given a user message in ANY language, extract ONLY the bare core product/item noun and translate it to German.
 CRITICAL RULES:
 - DO NOT include prices, numbers, or currencies.
-- DO NOT include conditions like "under X", "cheap", "best", "new".
-- Return ONLY the absolute minimum German noun(s) needed for an e-commerce product search.
-- No explanations, no quotes.
+- DO NOT include adjectives like "cheap", "best", "new".
+- EXCLUDE accessories (cases, cables, bags, docking stations) unless they are the PRIMARY focus of the message.
+- For electronics, prefer specific device names (e.g., "Laptop", "TV", "Smartphone"). Avoid the generic term "Handy" unless specifically requested for older models.
+- Return ONLY the bare minimum German noun(s). No explanations.
 
 Examples:
 "I want a cheap laptop under 300 eur" → Laptop
-"أريد أفضل عروض الموبايلات تحت 400" → Handy
-"looking for a washing machine under 500" → Waschmaschine
-"تلفزيون سامسونج 55 بوصة" → Samsung Fernseher 55 Zoll
+"أريد أفضل عروض الموبايلات تحت 400" → Smartphone
+"looking for a washing machine" → Waschmaschine
+"تلفزيون سامسونج 55 بوصة" → Samsung Fernseher
 "أريد عروض أحذية رياضية رخيصة" → Sportschuhe'
         ],
             [

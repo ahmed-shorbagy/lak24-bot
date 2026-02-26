@@ -12,11 +12,15 @@ if (!defined('LAK24_BOT')) {
     exit('Access denied');
 }
 
+// Load environment variables
+require_once __DIR__ . '/classes/Env.php';
+Env::load(__DIR__ . '/.env');
+
 return [
     // ─── OpenAI Configuration ────────────────────────────────────────
     'openai' => [
-        'api_key'     => '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',
-        'model'       => 'gpt-4o-mini',
+        'api_key'     => Env::get('OPENAI_API_KEY', ''),
+        'model'       => Env::get('OPENAI_MODEL', 'gpt-4o-mini'),
         'max_tokens'  => 4096,
         'temperature' => 0.4,
         'api_url'     => 'https://api.openai.com/v1/chat/completions',
@@ -111,9 +115,9 @@ return [
     // ─── External APIs (Affiliate) ───────────────────────────────────
     'affiliate' => [
         'amazon' => [
-            'store_id'   => 'lak2400-21',
-            'access_key' => 'AKPAU33KH21771798257',
-            'secret_key' => 'qwBMWMG0ArozrOEu8NM/uS8+Gtd+Eqmv2BR1hVXL',
+            'store_id'   => Env::get('AMAZON_STORE_ID', 'lak2400-21'),
+            'access_key' => Env::get('AMAZON_ACCESS_KEY', ''),
+            'secret_key' => Env::get('AMAZON_SECRET_KEY', ''),
             'region'     => 'eu-west-1', // PA-API for Germany is usually eu-west-1
             'host'       => 'webservices.amazon.de',
         ],

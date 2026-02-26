@@ -188,25 +188,29 @@ function handleChat(array $config, ChatGPT $chatgpt, SessionManager $sessions, B
         ]);
     }
 
-    $sessions->addMessage($sessionId, 'user', $userMessage);
+    // (Message will be added to session later after intent analysis)
 
     // Intent detection & offer search
     $intent          = $chatgpt->analyzeIntent($userMessage);
     $enhancedMessage = $userMessage;
+    $userLang        = detectLanguage($userMessage);
 
     if ($intent === 'offer_search') {
         $maxPrice = extractPriceFromMessage($userMessage);
         $germanKeyword = $chatgpt->extractProductKeyword($userMessage);
         $searchResults    = $search->search($germanKeyword, $maxPrice);
         $formattedResults = $search->formatResultsForBot($searchResults);
-        $enhancedMessage  = $userMessage . "\n\n[روابط البحث المباشر — استخدم هذه الروابط الحقيقية فقط ولا تخترع روابط من عندك]\n" . $formattedResults;
+        
+        $header = $userLang === 'ar' ? 'ملاحظة للنظام — استخدم هذه الروابط الحقيقية فقط' : 'SYSTEM NOTE — Use ONLY these real results/links';
+        $instruction = $userLang === 'ar' ? "1. يجب أن يكون ردك باللغة العربية حصراً.\n" : "1. You MUST reply in ENGLISH only.\n";
+
+        $enhancedMessage  = $userMessage . "\n\n[" . $header . "]\n" . $formattedResults . "\n\nIMPORTANT INSTRUCTIONS:\n" . $instruction . "2. Present the specific products found clearly.\n3. Do NOT invent or hallucinate any other products or links.";
     }
 
+    // Add user message to session (including search enhancements if any)
+    $sessions->addMessage($sessionId, 'user', $enhancedMessage);
+
     $messages = $sessions->getMessagesForAPI($sessionId, $systemPrompt);
-    if ($enhancedMessage !== $userMessage) {
-        $lastIdx = count($messages) - 1;
-        $messages[$lastIdx] = ['role' => 'user', 'content' => $enhancedMessage];
-    }
 
     $result = $chatgpt->sendMessage($messages);
 
@@ -311,4 +315,18 @@ function extractPriceFromMessage(string $message): ?float
         return (float) str_replace(',', '.', $matches[1]);
     }
     return null;
+}
+
+/**
+ * Detect if message is primarily Arabic or Latin script
+ */
+function detectLanguage(string $message): string
+{
+    $arabicChars = preg_match_all('/[\x{0600}-\x{06FF}]/u', $message);
+    $latinChars  = preg_match_all('/[a-zA-Z]/u', $message);
+    
+    if ($arabicChars > $latinChars) {
+        return 'ar';
+    }
+    return 'en';
 }

@@ -1,0 +1,27 @@
+{
+  "name": "chatbot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ahmed-shorbagy/lak24-bot.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/ahmed-shorbagy/lak24-bot/issues"
+  },
+  "homepage": "https://github.com/ahmed-shorbagy/lak24-bot#readme",
+  "dependencies": {
+    "pdf-parse": "^2.4.5"
+  }
+}

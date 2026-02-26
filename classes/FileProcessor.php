@@ -53,7 +53,7 @@ class FileProcessor
     }
 
     /**
-     * Process a PDF file — extract text content
+     * Process a PDF file — extract text content across all pages
      */
     private function processPDF(array $file): array
     {
@@ -61,34 +61,12 @@ class FileProcessor
         $text    = '';
 
         try {
-            // Method 1: Try pdftotext (requires poppler-utils)
-            $text = $this->extractPDFWithPdftotext($tmpPath);
+            // Use Node.js script with pdf-parse for robust extraction
+            $text = $this->extractPDFWithNode($tmpPath);
 
-            // Method 2: Basic PHP PDF text extraction
             if (empty(trim($text))) {
-                $text = $this->extractPDFBasic($tmpPath);
-            }
-
-            // Method 3: If text extraction fails, convert PDF page to image
-            // and use vision API instead
-            if (empty(trim($text))) {
-                // Try ImageMagick/Ghostscript first
-                $imageData = $this->convertPDFToImage($tmpPath);
-                if ($imageData) {
-                    return [
-                        'success'  => true,
-                        'type'     => 'image',
-                        'data'     => $imageData,
-                        'mime'     => 'image/png',
-                        'filename' => $file['name'],
-                        'error'    => null,
-                    ];
-                }
-
-                // Error: We couldn't parse it in PHP, and we have no Ghostscript to convert it to image.
-                // We cannot send raw PDFs to OpenAI Vision API (it only accepts JPEG/PNG/WEBP).
                 if ($this->logger) {
-                    $this->logger->warning('PDF fallback: Server lacks pdftotext/Ghostscript to process this PDF', [
+                    $this->logger->warning('PDF extraction returned empty text', [
                         'filename' => $file['name'],
                     ]);
                 }
@@ -97,12 +75,12 @@ class FileProcessor
                     'success' => false,
                     'type'    => 'pdf',
                     'data'    => null,
-                    'error'   => 'عذراً، الخادم الحالي لا يدعم قراءة هذا النوع من ملفات PDF المعقدة. يرجى أخذ لقطة شاشة (Screenshot) للنص ورفعها كصورة بدلاً من ذلك.',
+                    'error'   => 'عذراً، لم نتمكن من استخراج نص من هذا الملف. يرجى التأكد من أن الملف يحتوي على نص قابل للقراءة.',
                 ];
             }
 
             if ($this->logger) {
-                $this->logger->info('PDF processed', [
+                $this->logger->info('PDF processed via Node.js', [
                     'filename'    => $file['name'],
                     'text_length' => mb_strlen($text),
                 ]);
@@ -133,143 +111,36 @@ class FileProcessor
     }
 
     /**
-     * Extract text from PDF using pdftotext command-line tool
+     * Extract text from PDF using Node.js script
      */
-    private function extractPDFWithPdftotext(string $pdfPath): string
+    private function extractPDFWithNode(string $pdfPath): string
     {
-        // Check if pdftotext is available
-        $check = shell_exec('where pdftotext 2>NUL') ?: shell_exec('which pdftotext 2>/dev/null');
-        if (empty($check)) {
-            return '';
+        $scriptPath = __DIR__ . '/../bin/pdf-extract.js';
+        
+        if (!file_exists($scriptPath)) {
+            throw new \Exception("Extraction script missing: $scriptPath");
         }
 
-        $outputFile = tempnam(sys_get_temp_dir(), 'pdf_');
-        $command    = sprintf('pdftotext -enc UTF-8 %s %s 2>&1',
-            escapeshellarg($pdfPath),
-            escapeshellarg($outputFile)
+        $command = sprintf('node %s %s 2>&1',
+            escapeshellarg($scriptPath),
+            escapeshellarg($pdfPath)
         );
 
+        $output = [];
+        $returnCode = 0;
         exec($command, $output, $returnCode);
 
-        if ($returnCode === 0 && file_exists($outputFile)) {
-            $text = file_get_contents($outputFile);
-            unlink($outputFile);
-            return $text;
-        }
-
-        if (file_exists($outputFile)) {
-            unlink($outputFile);
-        }
-
-        return '';
-    }
-
-    /**
-     * Basic PHP PDF text extraction (handles simple PDFs)
-     */
-    private function extractPDFBasic(string $pdfPath): string
-    {
-        $content = file_get_contents($pdfPath);
-
-        if ($content === false) {
+        if ($returnCode !== 0) {
+            $errorMsg = implode("\n", $output);
+            if ($this->logger) {
+                $this->logger->error('Node.js PDF extraction error', ['error' => $errorMsg]);
+            }
             return '';
         }
 
-        $text = '';
-
-        // Try to extract text from PDF streams
-        // This handles uncompressed text streams
-        if (preg_match_all('/BT\s*(.*?)\s*ET/s', $content, $matches)) {
-            foreach ($matches[1] as $match) {
-                // Extract text from Tj and TJ operators
-                if (preg_match_all('/\((.*?)\)\s*Tj/s', $match, $textMatches)) {
-                    $text .= implode(' ', $textMatches[1]) . "\n";
-                }
-                if (preg_match_all('/\[(.*?)\]\s*TJ/s', $match, $textMatches)) {
-                    foreach ($textMatches[1] as $tj) {
-                        if (preg_match_all('/\((.*?)\)/s', $tj, $innerMatches)) {
-                            $text .= implode('', $innerMatches[1]);
-                        }
-                    }
-                    $text .= "\n";
-                }
-            }
-        }
-
-        // Try deflate compressed streams
-        if (empty(trim($text)) && preg_match_all('/stream\r?\n(.*?)\r?\nendstream/s', $content, $streamMatches)) {
-            foreach ($streamMatches[1] as $stream) {
-                $decoded = @gzuncompress($stream);
-                if ($decoded === false) {
-                    $decoded = @gzinflate($stream);
-                }
-                if ($decoded !== false) {
-                    // Extract text operators from decoded stream
-                    if (preg_match_all('/\((.*?)\)\s*Tj/s', $decoded, $textMatches)) {
-                        $text .= implode(' ', $textMatches[1]) . "\n";
-                    }
-                }
-            }
-        }
-
-        // Clean up extracted text
-        $text = preg_replace('/[^\P{C}\n\t ]/u', '', $text);
-        $text = preg_replace('/\n{3,}/', "\n\n", $text);
-
-        return trim($text);
+        return implode("\n", $output);
     }
 
-    /**
-     * Convert first page of PDF to image (for vision API)
-     * Requires ImageMagick or Ghostscript
-     */
-    private function convertPDFToImage(string $pdfPath): ?string
-    {
-        // Try ImageMagick
-        if (extension_loaded('imagick')) {
-            try {
-                $imagick = new \Imagick();
-                $imagick->setResolution(200, 200);
-                $imagick->readImage($pdfPath . '[0]'); // First page only
-                $imagick->setImageFormat('png');
-
-                $imageData = base64_encode($imagick->getImageBlob());
-                $imagick->clear();
-                $imagick->destroy();
-
-                return $imageData;
-            } catch (\Exception $e) {
-                // Fall through to ghostscript
-            }
-        }
-
-        // Try Ghostscript (command-line)
-        $outputFile = tempnam(sys_get_temp_dir(), 'pdf_img_') . '.png';
-        $gsCommands = ['gswin64c', 'gswin32c', 'gs'];
-
-        foreach ($gsCommands as $gs) {
-            $command = sprintf(
-                '%s -dNOPAUSE -dBATCH -sDEVICE=png16m -r200 -dFirstPage=1 -dLastPage=1 -sOutputFile=%s %s 2>&1',
-                $gs,
-                escapeshellarg($outputFile),
-                escapeshellarg($pdfPath)
-            );
-
-            exec($command, $output, $returnCode);
-
-            if ($returnCode === 0 && file_exists($outputFile) && filesize($outputFile) > 0) {
-                $imageData = base64_encode(file_get_contents($outputFile));
-                unlink($outputFile);
-                return $imageData;
-            }
-        }
-
-        if (file_exists($outputFile)) {
-            unlink($outputFile);
-        }
-
-        return null;
-    }
 
     /**
      * Process an image file — resize and encode for Vision API

@@ -19,5 +19,7 @@ composer.lock
 .DS_Store
 .vscode/
 
-# Project specific
-implementation_plan.md.resolved
+# Environment variables
+.env
+.env.local
+.env.example

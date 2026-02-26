@@ -49,8 +49,8 @@ class OfferSearch
         $lak24Count = $this->config['lak24_priority'] ?? 3;
 
         // Step 1: Search lak24.de first
-        $lak24Results = $this->searchLak24($query, $maxPrice, $category);
-        $results      = array_merge($results, array_slice($lak24Results, 0, $lak24Count));
+        $lak24Results = $this->searchLak24($query, $maxPrice, $lak24Count);
+        $results      = array_merge($results, $lak24Results);
 
         // Step 2: Fill remaining slots with external results
         $remaining = $maxResults - count($results);
@@ -87,7 +87,7 @@ class OfferSearch
     /**
      * Search lak24.de for offers
      */
-    private function searchLak24(string $query, ?float $maxPrice, string $category): array
+    private function searchLak24(string $query, ?float $maxPrice, int $limit): array
     {
         $baseUrl = $this->config['lak24_base_url'] ?? 'https://lak24.de';
         $results = [];
@@ -98,7 +98,17 @@ class OfferSearch
 
             $html = $this->fetchPage($searchUrl);
             if ($html) {
-                $results = $this->parseLak24Results($html, $maxPrice);
+                $rawResults = $this->parseLak24Results($html, $maxPrice, $query);
+                foreach ($rawResults as $r) {
+                    if (count($results) >= $limit) break;
+                    if ($this->isAccessory($r['title']) && !$this->isAccessoryRequested($query)) {
+                        if ($this->logger) {
+                            $this->logger->info('Filtered accessory from Lak24', ['title' => $r['title']]);
+                        }
+                        continue;
+                    }
+                    $results[] = $r;
+                }
             }
         } catch (\Exception $e) {
             if ($this->logger) {
@@ -129,8 +139,12 @@ class OfferSearch
             try {
                 require_once __DIR__ . '/AmazonPAAPI.php';
                 $amazon = new AmazonPAAPI($this->config['affiliate']['amazon'], $this->logger);
-                $amzResults = $amazon->search($query, $maxPrice, $limit);
-                $results = array_merge($results, $amzResults);
+                $amzResults = $amazon->search($query, $maxPrice, 50); // Fetch much more to allow aggressive filtering
+                foreach ($amzResults as $r) {
+                    if (count($results) >= $limit) break;
+                    if ($this->isAccessory($r['title']) && !$this->isAccessoryRequested($query)) continue;
+                    $results[] = $r;
+                }
             } catch (\Exception $e) {
                 if ($this->logger) $this->logger->warning('Amazon search failed', ['error' => $e->getMessage()]);
             }
@@ -141,8 +155,28 @@ class OfferSearch
             try {
                 require_once __DIR__ . '/AwinDatabase.php';
                 $awin = new AwinDatabase($this->config['affiliate']['awin'], $this->logger);
-                $awinResults = $awin->search($query, $maxPrice, $limit - count($results));
-                $results = array_merge($results, $awinResults);
+                $awinResults = $awin->search($query, $maxPrice, 50); // Depth increased for robustness
+                $filtered = 0;
+                $kept = 0;
+                foreach ($awinResults as $r) {
+                    if (count($results) >= $limit) break;
+                    if ($this->isAccessory($r['title']) && !$this->isAccessoryRequested($query)) {
+                        $filtered++;
+                        if ($this->logger) {
+                            $this->logger->info('Filtered accessory from Awin', ['title' => $r['title']]);
+                        }
+                        continue;
+                    }
+                    $kept++;
+                    $results[] = $r;
+                }
+                if ($this->logger) {
+                    $this->logger->info('Awin search filter stats', [
+                        'total' => count($awinResults),
+                        'kept' => $kept,
+                        'filtered' => $filtered
+                    ]);
+                }
             } catch (\Exception $e) {
                 if ($this->logger) $this->logger->warning('Awin search failed', ['error' => $e->getMessage()]);
             }
@@ -160,7 +194,7 @@ class OfferSearch
                             $url     = $baseUrl . '/preisvergleich/MainSearchProductCategory.html?q=' . urlencode($query);
                             $fetched = $this->fetchPage($url);
                             if ($fetched) {
-                                $parsed = $this->parseIdealoResults($fetched, $maxPrice);
+                                $parsed = $this->parseIdealoResults($fetched, $maxPrice, $query);
                                 // Limit parsed
                                 $parsed = array_slice($parsed, 0, $limit - count($results));
                                 $results = array_merge($results, $parsed);
@@ -171,7 +205,7 @@ class OfferSearch
                             $url     = $baseUrl . '/?fs=' . urlencode($query);
                             $fetched = $this->fetchPage($url);
                             if ($fetched) {
-                                $parsed = $this->parseGeizhalsResults($fetched, $maxPrice);
+                                $parsed = $this->parseGeizhalsResults($fetched, $maxPrice, $query);
                                 // Limit parsed
                                 $parsed = array_slice($parsed, 0, $limit - count($results));
                                 $results = array_merge($results, $parsed);
@@ -193,7 +227,7 @@ class OfferSearch
     /**
      * Parse lak24 search results from HTML
      */
-    private function parseLak24Results(string $html, ?float $maxPrice): array
+    private function parseLak24Results(string $html, ?float $maxPrice, string $query): array
     {
         $results = [];
 
@@ -216,6 +250,11 @@ class OfferSearch
                 $image = $this->extractAttribute($xpath, './/img/@src', $product);
 
                 if (!empty($title) && $price !== null) {
+                    // Filter out accessories if main product is likely requested
+                    if ($this->isAccessory($title) && !$this->isAccessoryRequested($query)) {
+                        continue;
+                    }
+
                     if ($maxPrice === null || $price <= $maxPrice) {
                         $results[] = [
                             'title' => trim($title),
@@ -235,7 +274,7 @@ class OfferSearch
     /**
      * Parse idealo search results
      */
-    private function parseIdealoResults(string $html, ?float $maxPrice): array
+    private function parseIdealoResults(string $html, ?float $maxPrice, string $query): array
     {
         $results = [];
 
@@ -254,6 +293,9 @@ class OfferSearch
                 $link  = $this->extractAttribute($xpath, './/a/@href', $product);
 
                 if (!empty($title) && $price !== null) {
+                    if ($this->isAccessory($title) && !$this->isAccessoryRequested($query)) {
+                        continue;
+                    }
                     if ($maxPrice === null || $price <= $maxPrice) {
                         $results[] = [
                             'title'           => trim($title),
@@ -275,7 +317,7 @@ class OfferSearch
     /**
      * Parse geizhals search results
      */
-    private function parseGeizhalsResults(string $html, ?float $maxPrice): array
+    private function parseGeizhalsResults(string $html, ?float $maxPrice, string $query): array
     {
         $results = [];
 
@@ -294,6 +336,9 @@ class OfferSearch
                 $link  = $this->extractAttribute($xpath, './/a/@href', $product);
 
                 if (!empty($title) && $price !== null) {
+                    if ($this->isAccessory($title) && !$this->isAccessoryRequested($query)) {
+                        continue;
+                    }
                     if ($maxPrice === null || $price <= $maxPrice) {
                         $results[] = [
                             'title'           => trim($title),
@@ -511,5 +556,53 @@ class OfferSearch
             return $url;
         }
         return rtrim($baseUrl, '/') . '/' . ltrim($url, '/');
+    }
+
+    /**
+     * Check if a product title describes an accessory
+     */
+    private function isAccessory(string $title): bool
+    {
+        $accessories = [
+            'hülle', 'tasche', 'case', 'sleeve', 'cover', 'docking', 'kabel', 'cable', 
+            'mauspad', 'mousepad', 'netzteil', 'adapter', 'folie', 'schutz', 'panzerglas',
+            'halterung', 'ständer', 'stand', 'rucksack', 'backbag', 'arm', 'station',
+            'notebooktasche', 'laptop-tasche', 'notebook-tasche', 'schutzhülle',
+            'tastatur', 'keyboard', 'maus', 'mouse', 'ladegerät', 'charger', 'netzteil',
+            'umhängetasche', 'akku', 'battery', 'wandhalterung', 'ständer', 'stand',
+            'fernbedienung', 'remote', 'panzerglas', 'schutzfolie', 'displayport', 'hdmi',
+            'kabel', 'cable', 'adapter', 'powerbank', 'kopfhörer', 'earbuds', 'headset',
+            'schutzhülle', 'display-schutz', 'glas-schutz', 'textmarker', 'stift', 'marker',
+            'umreifungs-set', 'strapping', 'set', 'büro', 'folder', 'mappe', 'beutel', 'tüte',
+            'reinigungs', 'cleaning', 'pflege', 'care', 'halter', 'karton', 'box'
+        ];
+
+        $titleLower = mb_strtolower($title);
+        foreach ($accessories as $accessory) {
+            if (mb_strpos($titleLower, $accessory) !== false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if the user query explicitly requested an accessory
+     */
+    private function isAccessoryRequested(string $query): bool
+    {
+        $accessoryKeywords = [
+            'hülle', 'tasche', 'case', 'sleeve', 'cover', 'docking', 'kabel', 'cable',
+            'maus', 'mouse', 'tastatur', 'keyboard', 'netzteil', 'adapter', 'folie',
+            'schutz', 'panzerglas', 'halterung', 'ständer', 'stand'
+        ];
+
+        $queryLower = mb_strtolower($query);
+        foreach ($accessoryKeywords as $kw) {
+            if (mb_strpos($queryLower, $kw) !== false) {
+                return true;
+            }
+        }
+        return false;
     }
 }
