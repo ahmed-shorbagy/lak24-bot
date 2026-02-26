@@ -373,14 +373,14 @@
         if (role === 'bot') {
             msgDiv.innerHTML = `
                 <div class="msg-avatar">🤖</div>
-                <div class="bubble">
+                <div class="bubble" dir="auto">
                     ${renderMarkdown(content)}
                     <span class="time">${time}</span>
                 </div>
             `;
         } else {
             msgDiv.innerHTML = `
-                <div class="bubble">
+                <div class="bubble" dir="auto">
                     ${escapeHtml(content)}
                     <span class="time">${time}</span>
                 </div>
@@ -409,9 +409,6 @@
 
         // Inline code: `code`
         html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-        // Line breaks
-        html = html.replace(/\n/g, '<br>');
 
         return html;
     }
@@ -499,10 +496,10 @@
                 if (msg.role === 'bot') {
                     msgDiv.innerHTML = `
                         <div class="msg-avatar">🤖</div>
-                        <div class="bubble">${msg.html}</div>
+                        <div class="bubble" dir="auto">${msg.html}</div>
                     `;
                 } else {
-                    msgDiv.innerHTML = `<div class="bubble">${msg.html}</div>`;
+                    msgDiv.innerHTML = `<div class="bubble" dir="auto">${msg.html}</div>`;
                 }
 
                 elements.messages.appendChild(msgDiv);

@@ -30,9 +30,10 @@ class OfferSearch
      * @param string   $query     Product search query
      * @param float|null $maxPrice Maximum price in EUR
      * @param string   $category  Product category (optional)
+     * @param array    $searchVariants Brand-specific search variants (optional)
      * @return array Search results
      */
-    public function search(string $query, ?float $maxPrice = null, string $category = ''): array
+    public function search(string $query, ?float $maxPrice = null, string $category = '', array $searchVariants = []): array
     {
         $cacheKey = Cache::makeKey('offers', $query, (string)$maxPrice, $category);
         $cached   = $this->cache->get($cacheKey);
@@ -55,7 +56,7 @@ class OfferSearch
         // Step 2: Fill remaining slots with external results
         $remaining = $maxResults - count($results);
         if ($remaining > 0) {
-            $externalResults = $this->searchExternal($query, $maxPrice, $category, $remaining);
+            $externalResults = $this->searchExternal($query, $maxPrice, $category, $remaining, $searchVariants);
             $results         = array_merge($results, array_slice($externalResults, 0, $remaining));
         }
 
@@ -130,7 +131,7 @@ class OfferSearch
     /**
      * Search external German price comparison sites and affiliate APIs
      */
-    private function searchExternal(string $query, ?float $maxPrice, string $category, int $limit): array
+    private function searchExternal(string $query, ?float $maxPrice, string $category, int $limit, array $searchVariants = []): array
     {
         $results = [];
 
@@ -155,11 +156,27 @@ class OfferSearch
             try {
                 require_once __DIR__ . '/AwinDatabase.php';
                 $awin = new AwinDatabase($this->config['affiliate']['awin'], $this->logger);
-                $awinResults = $awin->search($query, $maxPrice, 50); // Depth increased for robustness
+
+                // Use multi-query search if we have brand variants, otherwise single query
+                $useVariants = !empty($searchVariants) && count($searchVariants) > 1;
+                if ($useVariants) {
+                    $awinResults = $awin->searchMultiple($searchVariants, $maxPrice, 50);
+                    if ($this->logger) {
+                        $this->logger->info('Awin multi-query search', [
+                            'variants' => count($searchVariants),
+                            'raw_results' => count($awinResults)
+                        ]);
+                    }
+                } else {
+                    $awinResults = $awin->search($query, $maxPrice, 50);
+                }
+
                 $filtered = 0;
                 $kept = 0;
                 foreach ($awinResults as $r) {
                     if (count($results) >= $limit) break;
+                    
+                    // Layer 1: Negative filter — reject accessories
                     if ($this->isAccessory($r['title']) && !$this->isAccessoryRequested($query)) {
                         $filtered++;
                         if ($this->logger) {
@@ -167,6 +184,16 @@ class OfferSearch
                         }
                         continue;
                     }
+
+                    // Layer 2: Positive validation — only keep genuinely relevant products
+                    if (!$this->isRelevantProduct($r['title'], $query)) {
+                        $filtered++;
+                        if ($this->logger) {
+                            $this->logger->info('Filtered irrelevant product from Awin', ['title' => $r['title'], 'keyword' => $query]);
+                        }
+                        continue;
+                    }
+
                     $kept++;
                     $results[] = $r;
                 }
@@ -174,7 +201,8 @@ class OfferSearch
                     $this->logger->info('Awin search filter stats', [
                         'total' => count($awinResults),
                         'kept' => $kept,
-                        'filtered' => $filtered
+                        'filtered' => $filtered,
+                        'multi_query' => $useVariants
                     ]);
                 }
             } catch (\Exception $e) {
@@ -559,22 +587,38 @@ class OfferSearch
     }
 
     /**
-     * Check if a product title describes an accessory
+     * Check if a product title describes an accessory or non-product item
      */
     private function isAccessory(string $title): bool
     {
         $accessories = [
-            'hülle', 'tasche', 'case', 'sleeve', 'cover', 'docking', 'kabel', 'cable', 
-            'mauspad', 'mousepad', 'netzteil', 'adapter', 'folie', 'schutz', 'panzerglas',
-            'halterung', 'ständer', 'stand', 'rucksack', 'backbag', 'arm', 'station',
-            'notebooktasche', 'laptop-tasche', 'notebook-tasche', 'schutzhülle',
-            'tastatur', 'keyboard', 'maus', 'mouse', 'ladegerät', 'charger', 'netzteil',
-            'umhängetasche', 'akku', 'battery', 'wandhalterung', 'ständer', 'stand',
-            'fernbedienung', 'remote', 'panzerglas', 'schutzfolie', 'displayport', 'hdmi',
-            'kabel', 'cable', 'adapter', 'powerbank', 'kopfhörer', 'earbuds', 'headset',
-            'schutzhülle', 'display-schutz', 'glas-schutz', 'textmarker', 'stift', 'marker',
-            'umreifungs-set', 'strapping', 'set', 'büro', 'folder', 'mappe', 'beutel', 'tüte',
-            'reinigungs', 'cleaning', 'pflege', 'care', 'halter', 'karton', 'box'
+            // Cases, covers, bags
+            'hülle', 'tasche', 'case', 'sleeve', 'cover', 'schutzhülle', 'display-schutz',
+            'glas-schutz', 'notebooktasche', 'laptop-tasche', 'notebook-tasche',
+            'umhängetasche', 'rucksack', 'backbag', 'beutel', 'tüte', 'mappe',
+            // Cables, adapters, chargers
+            'kabel', 'cable', 'adapter', 'netzteil', 'ladegerät', 'charger', 'powerbank',
+            'displayport', 'hdmi', 'docking',
+            // Mounts, stands, holders
+            'halterung', 'halter', 'ständer', 'stand', 'wandhalterung', 'arm', 'stativ',
+            'clip', 'ring',
+            // Screen protectors
+            'folie', 'schutz', 'panzerglas', 'schutzfolie',
+            // Peripherals
+            'mauspad', 'mousepad', 'tastatur', 'keyboard', 'maus', 'mouse',
+            'fernbedienung', 'remote', 'kopfhörer', 'earbuds', 'headset',
+            // Power
+            'akku', 'battery', 'station',
+            // Furniture & storage (catches Smartphone-Schrank, etc.)
+            'schrank', 'regal', 'organizer', 'aufbewahrung', 'tisch', 'wagen',
+            'ringlicht',
+            // Office/stationery noise
+            'textmarker', 'stift', 'marker', 'büro', 'folder', 'karton', 'box',
+            'umreifungs-set', 'strapping',
+            // Cleaning
+            'reinigungs', 'cleaning', 'pflege', 'care',
+            // Generic accessory words
+            'zubehör', 'ersatzteil', 'socke',
         ];
 
         $titleLower = mb_strtolower($title);
@@ -583,6 +627,115 @@ class OfferSearch
                 return true;
             }
         }
+        return false;
+    }
+
+    /**
+     * Check if a product title is genuinely relevant to the searched keyword.
+     * 
+     * This performs POSITIVE validation — the title must contain indicators
+     * that it's actually the type of product being searched for, not just
+     * something that happens to contain the keyword.
+     * 
+     * @param string $title  Product title
+     * @param string $keyword The search keyword used
+     * @return bool True if the product appears to be genuinely relevant
+     */
+    private function isRelevantProduct(string $title, string $keyword): bool
+    {
+        $titleLower = mb_strtolower($title);
+        $keywordLower = mb_strtolower($keyword);
+
+        // Define positive indicators for each product category
+        $relevanceRules = [
+            'smartphone' => [
+                'brands' => ['samsung', 'apple', 'iphone', 'xiaomi', 'redmi', 'poco', 'google pixel',
+                    'oneplus', 'motorola', 'oppo', 'vivo', 'realme', 'nokia', 'huawei', 'honor',
+                    'nothing phone', 'fairphone', 'sony xperia'],
+                'specs' => ['5g', 'lte', 'dual sim', 'android', 'ios',
+                    '64gb', '128gb', '256gb', '512gb', '1tb',
+                    'amoled', 'mp kamera', 'megapixel'],
+                'exclusions' => ['tablet', 'ipad', 'schrank', 'ringlicht', 'stativ', 'laptop', 'notebook', 'pc', 'monitor', 'fernseher', 'tv'],
+            ],
+            'handy' => 'smartphone', // alias
+            'laptop' => [
+                'brands' => ['lenovo', 'hp ', 'dell', 'asus', 'acer', 'msi', 'apple', 'macbook',
+                    'thinkpad', 'ideapad', 'inspiron', 'pavilion', 'surface', 'chromebook',
+                    'tuxedo', 'framework', 'razer', 'gigabyte'],
+                'specs' => ['intel', 'amd', 'ryzen', 'core i', 'ram', 'ssd', 'ghz',
+                    'zoll display', 'fhd', 'full hd', 'windows', 'linux'],
+                'exclusions' => ['tasche', 'hülle', 'ständer', 'smartphone', 'handy', 'iphone'],
+            ],
+            'notebook' => 'laptop', // alias
+            'monitor' => [
+                'brands' => ['samsung', 'lg', 'asus', 'dell', 'aoc', 'benq', 'philips',
+                    'viewsonic', 'msi', 'iiyama', 'eizo', 'acer', 'xiaomi', 'hp '],
+                'specs' => ['hz', 'zoll', 'ips', 'oled', 'va', 'tn',
+                    '4k', 'qhd', 'uhd', 'wqhd', 'fhd', 'full hd',
+                    '1080p', '1440p', '2160p', 'curved', 'gaming monitor',
+                    'bildschirm', 'display'],
+                'exclusions' => ['laptop', 'notebook', 'macbook', 'hülle', 'stativ', 'arm', 'wandhalterung', 'smartphone', 'handy', 'iphone', 'tv ', 'fernseher'],
+            ],
+            'bildschirm' => 'monitor', // alias
+            'fernseher' => [
+                'brands' => ['samsung', 'lg', 'sony', 'panasonic', 'tcl', 'hisense',
+                    'philips', 'sharp', 'toshiba', 'grundig', 'xiaomi'],
+                'specs' => ['oled', 'qled', 'led', 'smart tv', 'uhd', '4k', '8k',
+                    'zoll', 'ambilight', 'dolby', 'hdr', 'hdmi'],
+                'exclusions' => ['wandhalterung', 'stativ', 'kabel', 'laptop', 'smartphone'],
+            ],
+            'tv' => 'fernseher', // alias
+            'tablet' => [
+                'brands' => ['apple', 'ipad', 'samsung', 'galaxy tab', 'lenovo tab',
+                    'huawei', 'xiaomi pad', 'microsoft surface'],
+                'specs' => ['wifi', 'lte', '5g', 'zoll', 'android', 'ipados',
+                    '64gb', '128gb', '256gb'],
+                'exclusions' => ['hülle', 'tasche', 'panzerglas', 'laptop', 'smartphone'],
+            ],
+        ];
+
+        // Find which category this keyword belongs to
+        $rules = null;
+        foreach ($relevanceRules as $category => $ruleSet) {
+            if (mb_strpos($keywordLower, $category) !== false) {
+                // Resolve aliases
+                if (is_string($ruleSet)) {
+                    $rules = $relevanceRules[$ruleSet];
+                } else {
+                    $rules = $ruleSet;
+                }
+                break;
+            }
+        }
+
+        // If no specific rules exist for this keyword, assume relevant
+        if ($rules === null) {
+            return true;
+        }
+
+        // Check for exclusions first (NEGATIVE category signals)
+        if (isset($rules['exclusions'])) {
+            foreach ($rules['exclusions'] as $exclusion) {
+                if (mb_strpos($titleLower, $exclusion) !== false) {
+                    return false;
+                }
+            }
+        }
+
+        // Check brands (POSITIVE indicator)
+        foreach ($rules['brands'] as $brand) {
+            if (mb_strpos($titleLower, $brand) !== false) {
+                return true;
+            }
+        }
+
+        // Check specs (POSITIVE indicator)
+        foreach ($rules['specs'] as $spec) {
+            if (mb_strpos($titleLower, $spec) !== false) {
+                return true;
+            }
+        }
+
         return false;
     }
 

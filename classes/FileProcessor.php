@@ -58,16 +58,16 @@ class FileProcessor
     private function processPDF(array $file): array
     {
         $tmpPath = $file['tmp_name'];
-        $text    = '';
 
         try {
             // Use Node.js script with pdf-parse for robust extraction
-            $text = $this->extractPDFWithNode($tmpPath);
+            $result = $this->extractPDFWithNode($tmpPath);
 
-            if (empty(trim($text))) {
+            if (!$result['success'] || empty(trim($result['text'] ?? ''))) {
                 if ($this->logger) {
-                    $this->logger->warning('PDF extraction returned empty text', [
+                    $this->logger->warning('PDF extraction returned empty text or failed', [
                         'filename' => $file['name'],
+                        'error'    => $result['error'] ?? 'Empty text',
                     ]);
                 }
                 
@@ -79,19 +79,24 @@ class FileProcessor
                 ];
             }
 
+            $text = $result['text'];
+            $pageCount = $result['pageCount'] ?? 1;
+
             if ($this->logger) {
                 $this->logger->info('PDF processed via Node.js', [
                     'filename'    => $file['name'],
                     'text_length' => mb_strlen($text),
+                    'page_count'  => $pageCount,
                 ]);
             }
 
             return [
-                'success'  => true,
-                'type'     => 'text',
-                'data'     => $text,
-                'filename' => $file['name'],
-                'error'    => null,
+                'success'    => true,
+                'type'       => 'text',
+                'data'       => $text,
+                'page_count' => $pageCount,
+                'filename'   => $file['name'],
+                'error'      => null,
             ];
         } catch (\Exception $e) {
             if ($this->logger) {
@@ -113,7 +118,7 @@ class FileProcessor
     /**
      * Extract text from PDF using Node.js script
      */
-    private function extractPDFWithNode(string $pdfPath): string
+    private function extractPDFWithNode(string $pdfPath): array
     {
         $scriptPath = __DIR__ . '/../bin/pdf-extract.js';
         
@@ -130,15 +135,25 @@ class FileProcessor
         $returnCode = 0;
         exec($command, $output, $returnCode);
 
+        $rawOutput = implode("\n", $output);
+
         if ($returnCode !== 0) {
-            $errorMsg = implode("\n", $output);
             if ($this->logger) {
-                $this->logger->error('Node.js PDF extraction error', ['error' => $errorMsg]);
+                $this->logger->error('Node.js PDF extraction error', ['error' => $rawOutput]);
             }
-            return '';
+            return ['success' => false, 'error' => $rawOutput];
         }
 
-        return implode("\n", $output);
+        $decoded = json_decode($rawOutput, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return [
+                'success' => true, 
+                'text' => $rawOutput, // Fallback if not JSON
+                'pageCount' => 1
+            ];
+        }
+
+        return array_merge(['success' => true], $decoded);
     }
 
 

@@ -153,19 +153,23 @@ function handleChat(array $config, ChatGPT $chatgpt, SessionManager $sessions, B
             if (mb_strlen($textContent) > 15000) {
                 $textContent = mb_substr($textContent, 0, 15000) . "\n\n[... تم اقتطاع النص]";
             }
-            $messages[] = ['role' => 'user', 'content' => $userMessage . "\n\n---\n\n" . $textContent];
+            $messages[] = [
+                'role'    => 'user', 
+                'content' => "USER INSTRUCTIONS: " . $userMessage . "\n\nFILE CONTENT TO TRANSLATE:\n" . $textContent
+            ];
             $result = $chatgpt->sendMessage($messages);
         }
 
         if (!$result || (!$result['success'])) {
             $logger->error('API translation failed', ['error' => $result['error'] ?? 'Unknown error']);
-            apiResponse(500, ['error' => 'فشلت الترجمة. يرجى المحاولة مرة أخرى.']);
+            apiResponse(503, ['error' => 'فشلت الترجمة. يرجى المحاولة مرة أخرى.']);
         }
 
-        $sessions->addMessage($sessionId, 'assistant', $result['message']);
+        $cleanReply = mb_convert_encoding($result['message'], 'UTF-8', 'UTF-8');
+        $sessions->addMessage($sessionId, 'assistant', $cleanReply);
 
         apiResponse(200, [
-            'reply'      => $result['message'],
+            'reply'      => $cleanReply,
             'session_id' => $sessionId,
             'type'       => 'translation',
             'filename'   => $file['name'],
@@ -198,7 +202,8 @@ function handleChat(array $config, ChatGPT $chatgpt, SessionManager $sessions, B
     if ($intent === 'offer_search') {
         $maxPrice = extractPriceFromMessage($userMessage);
         $germanKeyword = $chatgpt->extractProductKeyword($userMessage);
-        $searchResults    = $search->search($germanKeyword, $maxPrice);
+        $searchVariants = $chatgpt->getSearchVariants($germanKeyword);
+        $searchResults    = $search->search($germanKeyword, $maxPrice, '', $searchVariants);
         $formattedResults = $search->formatResultsForBot($searchResults);
         
         $header = $userLang === 'ar' ? 'ملاحظة للنظام — استخدم هذه الروابط الحقيقية فقط' : 'SYSTEM NOTE — Use ONLY these real results/links';
@@ -300,9 +305,16 @@ function handleWelcome(array $config): void
 
 function apiResponse(int $code, array $data): void
 {
-    http_response_code($code);
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    try {
+        http_response_code($code);
+        header('Content-Type: application/json; charset=utf-8');
+        $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+        echo $json;
+    } catch (\JsonException $e) {
+        // Fallback for encoding errors: sanitize again and try partial output
+        error_log("JSON Encoding Error: " . $e->getMessage());
+        echo json_encode(['error' => 'Encoding error in response'], JSON_UNESCAPED_UNICODE);
+    }
     exit;
 }
 

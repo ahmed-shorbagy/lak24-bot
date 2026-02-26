@@ -62,7 +62,7 @@ class ChatGPT
     public function sendVisionMessage(array $messages, string $imageBase64, string $mimeType, string $userPrompt = ''): array
     {
         if (empty($userPrompt)) {
-            $userPrompt = 'قم بترجمة النص الموجود في هذه الصورة من الألمانية إلى العربية. اعرض النص الأصلي أولاً ثم الترجمة.';
+            $userPrompt = 'Translate the text found in this image accurately.';
         }
 
         // Add the image message
@@ -369,6 +369,98 @@ Examples:
 
         // Fallback: return original message
         return $userMessage;
+    }
+
+    /**
+     * Get brand-specific search variants for a generic product keyword.
+     * 
+     * Generic keywords like "Smartphone" match too many irrelevant items
+     * in product databases. This method returns brand-specific alternatives
+     * that produce much better search results.
+     * 
+     * @param string $keyword The extracted product keyword
+     * @return array Array of search queries to try (includes original)
+     */
+    public function getSearchVariants(string $keyword): array
+    {
+        $keywordLower = mb_strtolower($keyword);
+
+        // Map generic electronics categories to brand-specific search terms
+        $variantMap = [
+            'smartphone' => [
+                'Samsung Galaxy Smartphone',
+                'iPhone Apple',
+                'Xiaomi Redmi Smartphone',
+                'Google Pixel',
+                'OnePlus Smartphone',
+                'Motorola Smartphone',
+            ],
+            'handy' => [
+                'Samsung Galaxy Smartphone',
+                'iPhone Apple',
+                'Xiaomi Smartphone',
+            ],
+            'laptop' => [
+                'Lenovo Laptop Notebook',
+                'HP Laptop Notebook',
+                'Dell Laptop',
+                'ASUS Laptop',
+                'Acer Laptop Notebook',
+                'Apple MacBook',
+            ],
+            'notebook' => [
+                'Lenovo Notebook Laptop',
+                'HP Notebook Laptop',
+                'ASUS Notebook',
+                'Acer Notebook',
+            ],
+            'monitor' => [
+                'Samsung Monitor',
+                'LG Monitor',
+                'ASUS Monitor',
+                'Dell Monitor',
+                'AOC Monitor',
+                'BenQ Monitor',
+            ],
+            'bildschirm' => [
+                'Samsung Monitor',
+                'LG Monitor',
+                'Dell Monitor',
+            ],
+            'fernseher' => [
+                'Samsung TV Fernseher',
+                'LG TV OLED',
+                'Sony Fernseher',
+                'TCL Fernseher',
+                'Hisense Fernseher',
+            ],
+            'tv' => [
+                'Samsung TV Fernseher',
+                'LG TV OLED',
+                'Sony TV',
+            ],
+            'tablet' => [
+                'Apple iPad',
+                'Samsung Galaxy Tab',
+                'Lenovo Tab',
+            ],
+            'kopfhörer' => [
+                'Sony Kopfhörer',
+                'Bose Headphones',
+                'Samsung Galaxy Buds',
+                'Apple AirPods',
+            ],
+        ];
+
+        // Check if the keyword matches any variant map
+        foreach ($variantMap as $generic => $variants) {
+            if (mb_strpos($keywordLower, $generic) !== false) {
+                return $variants;
+            }
+        }
+
+        // No variants needed — the keyword is specific enough
+        return [$keyword];
     }
 
     /**

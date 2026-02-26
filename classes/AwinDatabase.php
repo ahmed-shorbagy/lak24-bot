@@ -198,4 +198,43 @@ class AwinDatabase
             return [];
         }
     }
+
+    /**
+     * Search with multiple query variants and merge+deduplicate results.
+     * 
+     * This is the key to relevance: instead of searching for "Smartphone"
+     * (which returns cabinets and holders), we search for "Samsung Galaxy",
+     * "iPhone", "Xiaomi Redmi", etc. and merge the results.
+     * 
+     * @param array $queries Array of search query strings
+     * @param float|null $maxPrice Maximum price
+     * @param int $limit Total results to return
+     * @return array Merged and deduplicated results
+     */
+    public function searchMultiple(array $queries, ?float $maxPrice = null, int $limit = 10): array
+    {
+        $allResults = [];
+        $seenTitles = [];
+        $perQueryLimit = max(5, intval(ceil($limit / count($queries))));
+
+        foreach ($queries as $query) {
+            $results = $this->search($query, $maxPrice, $perQueryLimit);
+            foreach ($results as $r) {
+                // Deduplicate by normalized title
+                $normalizedTitle = mb_strtolower(trim($r['title']));
+                if (isset($seenTitles[$normalizedTitle])) {
+                    continue;
+                }
+                $seenTitles[$normalizedTitle] = true;
+                $allResults[] = $r;
+            }
+        }
+
+        // Sort by price ascending (best deals first) and limit
+        usort($allResults, function($a, $b) {
+            return $a['price'] <=> $b['price'];
+        });
+
+        return array_slice($allResults, 0, $limit);
+    }
 }
