@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="مساعد lak24 — بوت الدردشة الذكي للبحث عن العروض والترجمة">
-    <title>مساعد lak24 — بوت الدردشة الذكي</title>
+    <meta name="description" content="laki — بوت الدردشة الذكي للبحث عن العروض والترجمة">
+    <title>laki — بوت الدردشة الذكي</title>
     <link rel="stylesheet" href="assets/css/chat.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -127,8 +127,8 @@
 </head>
 <body>
     <div class="landing">
-        <div class="logo">🤖</div>
-        <h1>مساعد lak24</h1>
+        <div class="logo"><img src="assets/img/laki.png" alt="laki logo" style="width: 120px; height: auto;"></div>
+        <h1>laki</h1>
         <p>بوت الدردشة الذكي المدعوم بالذكاء الاصطناعي<br>يساعدك في البحث عن العروض والترجمة وكتابة الرسائل</p>
 
         <div class="features">

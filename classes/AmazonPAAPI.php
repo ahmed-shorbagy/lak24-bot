@@ -44,7 +44,7 @@ class AmazonPAAPI
             'Resources'   => [
                 'Images.Primary.Large',
                 'ItemInfo.Title',
-                'Offers.Listings.Price'
+                'OffersV2.Listings.Price'
             ],
             'ItemCount'   => 10, // Request 10, then filter top $limit below max price
             'PartnerTag'  => $this->partnerTag,
@@ -63,18 +63,18 @@ class AmazonPAAPI
             CURLOPT_TIMEOUT        => 10,
             CURLOPT_SSL_VERIFYPEER => true
         ]);
-
+ 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error    = curl_error($ch);
         curl_close($ch);
-
-        if ($error || $httpCode !== 200) {
-            if ($this->logger) {
+ 
+        if ($error || ($httpCode !== 200 && $httpCode !== 0)) {
+             if ($this->logger) {
                 $this->logger->error('Amazon PA-API request failed', [
                     'http_code' => $httpCode,
                     'error'     => $error,
-                    'response'  => substr($response, 0, 500) // Log first 500 chars
+                    'response'  => substr($response, 0, 500)
                 ]);
             }
             return [];
@@ -104,7 +104,7 @@ class AmazonPAAPI
             $title    = $item['ItemInfo']['Title']['DisplayValue'] ?? '';
             $url      = $item['DetailPageURL'] ?? '';
             $imageUrl = $item['Images']['Primary']['Large']['URL'] ?? '';
-            $priceStr = $item['Offers']['Listings'][0]['Price']['Amount'] ?? null;
+            $priceStr = $item['OffersV2']['Listings'][0]['Price']['Money']['Amount'] ?? null;
 
             if (empty($title) || $priceStr === null) {
                 continue;

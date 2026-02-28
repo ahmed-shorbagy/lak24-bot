@@ -20,7 +20,7 @@
         allowedTypes: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
         sessionKey: 'lak24_bot_session',
         historyKey: 'lak24_bot_history',
-        welcomeMessage: 'مرحباً! 👋 أنا مساعد lak24. يمكنني مساعدتك في:\n\n🛒 البحث عن أفضل العروض من المتاجر الألمانية\n🌐 ترجمة الرسائل والمستندات من الألمانية\n✍️ كتابة الردود والإيميلات\n\nكيف يمكنني مساعدتك اليوم؟',
+        welcomeMessage: 'مرحباً! 👋 أنا laki. يمكنني مساعدتك في:\n\n🛒 البحث عن أفضل العروض من المتاجر الألمانية\n🌐 ترجمة الرسائل والمستندات من الألمانية\n✍️ كتابة الردود والإيميلات\n\nكيف يمكنني مساعدتك اليوم؟',
         suggestions: [
             'أريد عروض تلفزيون 📺',
             'ترجم رسالة من الألمانية 🌐',
@@ -74,9 +74,9 @@
 
                 <!-- Header -->
                 <div class="lak24-chat-header">
-                    <div class="avatar">🤖</div>
+                    <div class="avatar"><img src="assets/img/laki.png" alt="laki"></div>
                     <div class="info">
-                        <div class="name">مساعد lak24</div>
+                        <div class="name">laki</div>
                         <div class="status"><span class="dot"></span> متصل الآن</div>
                     </div>
                     <div class="actions">
@@ -89,8 +89,8 @@
                 <div class="lak24-chat-messages" id="lak24Messages">
                     <!-- Welcome message -->
                     <div class="lak24-welcome">
-                        <div class="welcome-icon">🤖</div>
-                        <div class="welcome-title">مساعد lak24</div>
+                        <div class="welcome-icon"><img src="assets/img/laki.png" alt="laki" style="width: 80px; height: auto;"></div>
+                        <div class="welcome-title">laki</div>
                         <div class="welcome-text">${escapeHtml(CONFIG.welcomeMessage)}</div>
                     </div>
                 </div>
@@ -372,7 +372,7 @@
 
         if (role === 'bot') {
             msgDiv.innerHTML = `
-                <div class="msg-avatar">🤖</div>
+                <div class="msg-avatar"><img src="assets/img/laki.png" alt="laki"></div>
                 <div class="bubble" dir="auto">
                     ${renderMarkdown(content)}
                     <span class="time">${time}</span>
@@ -421,7 +421,7 @@
         const typing = document.createElement('div');
         typing.className = 'lak24-typing';
         typing.innerHTML = `
-            <div class="msg-avatar">🤖</div>
+            <div class="msg-avatar"><img src="assets/img/laki.png" alt="laki"></div>
             <div class="dots">
                 <div class="dot"></div>
                 <div class="dot"></div>
@@ -515,8 +515,8 @@
         // Clear UI
         elements.messages.innerHTML = `
             <div class="lak24-welcome">
-                <div class="welcome-icon">🤖</div>
-                <div class="welcome-title">مساعد lak24</div>
+                <div class="welcome-icon"><img src="assets/img/laki.png" alt="laki" style="width: 80px; height: auto;"></div>
+                <div class="welcome-title">laki</div>
                 <div class="welcome-text">${escapeHtml(CONFIG.welcomeMessage)}</div>
             </div>
         `;
