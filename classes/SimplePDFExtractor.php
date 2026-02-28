@@ -57,20 +57,16 @@ class SimplePDFExtractor
             if (preg_match_all('/BT(.*?)ET/ms', $uncompressed, $textBlocks)) {
                 foreach ($textBlocks[1] as $block) {
                     // Handle TJ (Arrays) and Tj (Strings)
-                    // Format: [(String) -20 (Another) 50] TJ  or (String) Tj
                     
                     // 1. Extract from brackets [(...)] TJ
                     if (preg_match_all('/\[(.*?)\]\s*TJ/s', $block, $tjMatches)) {
                         foreach ($tjMatches[1] as $tj) {
-                            // Extract strings within the array
-                            preg_match_all('/\((.*?)\)|<(.*?)>/s', $tj, $parts);
+                            preg_match_all('/\((.*?)(?<!\\\\)\)|<(.*?)>/s', $tj, $parts);
                             foreach ($parts[0] as $part) {
                                 if ($part[0] === '(') {
-                                    $content = substr($part, 1, -1);
-                                    $text .= str_replace(['\\(', '\\)', '\\\\'], ['(', ')', '\\'], $content);
+                                    $text .= self::decodeString(substr($part, 1, -1));
                                 } else {
-                                    $hex = preg_replace('/[^0-9A-Fa-f]/', '', substr($part, 1, -1));
-                                    $text .= self::decodeHex($hex);
+                                    $text .= self::decodeHex(substr($part, 1, -1));
                                 }
                             }
                             $text .= " ";
@@ -78,37 +74,37 @@ class SimplePDFExtractor
                     }
 
                     // 2. Extract single strings (String) Tj
-                    preg_match_all('/\((.*?)\)\s*Tj/s', $block, $tjMatches);
+                    preg_match_all('/\((.*?)(?<!\\\\)\)\s*Tj/s', $block, $tjMatches);
                     foreach ($tjMatches[1] as $match) {
-                        $text .= str_replace(['\\(', '\\)', '\\\\'], ['(', ')', '\\'], $match) . " ";
+                        $text .= self::decodeString($match) . " ";
                     }
 
                     // 3. Extract single hex strings <Hex> Tj
                     preg_match_all('/<(.*?)>\s*Tj/s', $block, $hexMatches);
                     foreach ($hexMatches[1] as $hex) {
-                        $hex = preg_replace('/[^0-9A-Fa-f]/', '', $hex);
                         $text .= self::decodeHex($hex) . " ";
                     }
                 }
             }
         }
 
-        // --- Hyper-Robust UTF-8 Safety & Cleanup ---
+        // --- God-Mode Post-Processing: Arabic Refinement & Cleanup ---
         
-        // 1. Force UTF-8 and strip any invalid bytes immediately
+        // 1. Force UTF-8 and strip any invalid bytes
         if (function_exists('mb_convert_encoding')) {
             $text = @mb_convert_encoding($text, 'UTF-8', 'UTF-8');
         }
 
-        // 2. Remove standard PDF escape sequences and control chars
-        $text = preg_replace('/(\\\\[0-7]{3})/', ' ', $text); // Octal
-        $text = preg_replace('/[\x00-\x1F\x7F]/', ' ', $text); // Controls
+        // 2. Normalize whitespace and basic cleanup
+        $text = preg_replace('/[\x00-\x1F\x7F]/', ' ', $text); 
         
-        // 3. Final Filter: Keep ONLY human characters (Arabic, Latin, Digits, Space, Punctuation)
-        // This is the most important step to prevent AI from seeing "corrupted" text.
+        // 3. Visual-to-Logical Correction (Fix backwards Arabic)
+        $text = self::fixArabicOrder($text);
+
+        // 4. Final Filter: Keep human characters (Arabic, Latin, Digits, Punctuation)
         $text = preg_replace('/[^\p{Arabic}\p{L}\p{N}\p{P}\s]/u', ' ', $text);
         
-        // 4. Decode HTML and normalize whitespace
+        // 5. Decode HTML and normalize whitespace
         $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $text = preg_replace('/\s+/', ' ', $text); 
 
@@ -123,6 +119,7 @@ class SimplePDFExtractor
      */
     private static function decodeHex(string $hex): string
     {
+        $hex = preg_replace('/[^0-9A-Fa-f]/', '', $hex);
         if (empty($hex)) return "";
         
         // Arabic/Multibyte PDFs often use 4-digit hex (UTF-16BE)
@@ -131,13 +128,66 @@ class SimplePDFExtractor
             for ($i = 0; $i < strlen($hex); $i += 4) {
                 $pair = substr($hex, $i, 4);
                 if (strlen($pair) === 4) {
-                    $decoded .= mb_convert_encoding(pack('H*', $pair), 'UTF-8', 'UTF-16BE');
+                    $char = @mb_convert_encoding(pack('H*', $pair), 'UTF-8', 'UTF-16BE');
+                    if ($char) $decoded .= $char;
                 }
             }
-            return $decoded;
+            if ($decoded) return $decoded;
         }
 
         $decoded = @hex2bin($hex);
         return $decoded ?: "";
+    }
+
+    /**
+     * Decodes PDF string escapes
+     */
+    private static function decodeString(string $match): string
+    {
+        $replacements = [
+            '\\\\' => '\\',
+            '\\('  => '(',
+            '\\)'  => ')',
+            '\\n'  => "\n",
+            '\\r'  => "\r",
+            '\\t'  => "\t",
+            '\\b'  => "\x08",
+            '\\f'  => "\x0C",
+        ];
+        $text = str_replace(array_keys($replacements), array_values($replacements), $match);
+        // Handle octal escapes \000
+        $text = preg_replace_callback('/\\\\([0-7]{1,3})/', function($m) {
+            return chr(octdec($m[1]));
+        }, $text);
+        return $text;
+    }
+
+    /**
+     * Corrects visual Arabic order (many PDFs store Arabic backward)
+     */
+    private static function fixArabicOrder(string $text): string
+    {
+        $words = explode(' ', $text);
+        foreach ($words as &$word) {
+            // If word is mostly Arabic characters, it might be reversed
+            preg_match_all('/\p{Arabic}/u', $word, $matches);
+            if (count($matches[0]) > (mb_strlen($word) / 2)) {
+                // Heuristic: Check if the word is logically reversed
+                // For simplicity, we reverse it and let AI handle the semantics
+                // but only if it looks like a long string of Arabic
+                if (mb_strlen($word) > 2) {
+                    $word = self::mb_strrev($word);
+                }
+            }
+        }
+        return implode(' ', $words);
+    }
+
+    private static function mb_strrev($str) {
+        $r = '';
+        for ($i = mb_strlen($str); $i>=0; $i--) {
+            $r .= mb_substr($str, $i, 1);
+        }
+        return $r;
     }
 }

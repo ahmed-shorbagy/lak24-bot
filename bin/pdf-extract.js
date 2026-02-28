@@ -1,3 +1,10 @@
+const fs = require('fs');
+
+// Polyfill for process.getBuiltinModule (sometimes missing in custom node bins)
+if (typeof process.getBuiltinModule !== 'function') {
+    process.getBuiltinModule = function (id) { return require(id); };
+}
+
 const pdf = require('pdf-parse');
 
 const pdfPath = process.argv[2];

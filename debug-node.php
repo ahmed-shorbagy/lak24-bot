@@ -8,18 +8,19 @@ header('Content-Type: text/plain; charset=utf-8');
 
 echo "--- Node.js Diagnostic ---\n\n";
 
-// 1. Check PHP functions
-echo "Checking PHP functions:\n";
+// 1. Check PHP functions & Environment
+echo "Checking PHP Environment:\n";
 echo "exec(): " . (function_exists('exec') ? "YES" : "NO") . "\n";
 echo "shell_exec(): " . (function_exists('shell_exec') ? "YES" : "NO") . "\n";
+echo "node_modules folder: " . (is_dir(__DIR__ . '/node_modules') ? "FOUND" : "NOT FOUND") . "\n";
 
 // 2. Try to find node path
 echo "\nTrying to find 'node' path:\n";
 $paths = [
+    __DIR__ . '/bin/node', // Local standalone
     'node', 
-    'node16', 'node18', 'node20', 'node22',
-    '/usr/local/bin/node', '/usr/bin/node', '/bin/node',
-    '/usr/bin/node18', '/usr/bin/node20'
+    'node18', 'node20',
+    '/usr/local/bin/node', '/usr/bin/node'
 ];
 foreach ($paths as $path) {
     unset($output);

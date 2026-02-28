@@ -1,9 +1,9 @@
 <?php
 /**
- * lak24 AI Chatbot — Automated Local Node.js Installer
+ * lak24 AI Chatbot — Automated Local Node.js Installer (v18 Compatibility Mode)
  * 
- * Specifically designed to run "pdf-extract.js" perfectly on shared hosting (like IONOS)
- * by downloading a standalone Linux x64 Node.js binary into the `bin/` folder.
+ * Specifically designed to run "pdf-extract.js" perfectly on older servers
+ * by using Node v18 (More stable on shared hosts like IONOS).
  */
 
 define('LAK24_BOT', true);
@@ -19,80 +19,90 @@ if (!is_dir($binDir)) {
 }
 
 $nodePath = $binDir . '/node';
+$npmPath  = $binDir . '/npm';
 
-if (file_exists($nodePath)) {
-    echo "✅ Success! Node.js is already installed at: $nodePath\n";
-    exec(escapeshellarg($nodePath) . " -v 2>&1", $out, $code);
-    echo "Version: " . ($out[0] ?? 'Unknown') . "\n";
-    echo "You are ready to process PDFs!\n";
-    exit;
-}
+echo "Running COMPATIBILITY installation (Node v18 + Shim Fix)...\n\n";
 
-echo "1. Checking System Architecture...\n";
+echo "1. Checking Architecture...\n";
 $os = php_uname('s');
 $arch = php_uname('m');
 echo "   OS: $os\n   Architecture: $arch\n\n";
 
-if (stripos($os, 'linux') === false || ($arch !== 'x86_64' && $arch !== 'amd64')) {
-    die("❌ This automated installer only supports Linux x64 servers (standard for IONOS web hosting). Your server is $os $arch.\n");
-}
-
-$nodeVersion = 'v20.11.1';
+// Use Node 18.x as it has lower glibc requirements than 20.x
+$nodeVersion = 'v18.19.1'; 
 $downloadUrl = "https://nodejs.org/dist/{$nodeVersion}/node-{$nodeVersion}-linux-x64.tar.xz";
 $tmpFile = $binDir . '/node.tar.xz';
 
-echo "2. Downloading Node.js $nodeVersion directly from nodejs.org (this may take up to a minute)...\n";
-set_time_limit(120);
+echo "2. Downloading Node.js $nodeVersion (Maximum Compatibility)...\n";
+set_time_limit(180);
 
 $ch = curl_init($downloadUrl);
 $fp = fopen($tmpFile, 'wb');
 curl_setopt($ch, CURLOPT_FILE, $fp);
 curl_setopt($ch, CURLOPT_HEADER, 0);
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-curl_setopt($ch, CURLOPT_TIMEOUT, 60);
 curl_exec($ch);
-$error = curl_error($ch);
 curl_close($ch);
 fclose($fp);
 
-if (!file_exists($tmpFile) || filesize($tmpFile) < 1000000 || $error) {
-    if (file_exists($tmpFile)) unlink($tmpFile);
-    die("❌ Failed to download Node.js tarball. Error: $error\n");
+if (!file_exists($tmpFile) || filesize($tmpFile) < 5000000) {
+    die("❌ Download failed.\n");
 }
-echo "   Download complete. Size: " . round(filesize($tmpFile) / 1024 / 1024, 2) . " MB\n\n";
+echo "   ✅ Download complete.\n\n";
 
-echo "3. Extracting Node.js binary...\n";
-// Ensure tar is available
-exec("tar --version 2>&1", $tarCheck, $tarCode);
-if ($tarCode !== 0) {
-    unlink($tmpFile);
-    die("❌ The 'tar' command is not available on your host to extract the file.\n");
-}
+echo "3. Extracting Binaries...\n";
 
-// Extract only the node executable from the archive
-$command = "tar -xf " . escapeshellarg($tmpFile) . " -C " . escapeshellarg($binDir) . " --strip-components=2 node-{$nodeVersion}-linux-x64/bin/node 2>&1";
-exec($command, $tarOut, $tarCode);
-
-if ($tarCode !== 0 || !file_exists($nodePath)) {
-    unlink($tmpFile);
-    die("❌ Extraction failed. Output: " . implode("\n", $tarOut) . "\n");
-}
-
-echo "   Extraction complete.\n\n";
-
-echo "4. Setting execute permissions...\n";
-chmod($nodePath, 0755);
-unlink($tmpFile); // Clean up the big archive
-
-echo "5. Testing Node.js Execution...\n";
-exec(escapeshellarg($nodePath) . " -v 2>&1", $testOut, $testCode);
-
-if ($testCode === 0) {
-    echo "✅ SUCCESS! Node.js locally installed!\n";
-    echo "   Node Version: " . ($testOut[0] ?? 'Unknown') . "\n";
-    echo "   Path: $nodePath\n\n";
-    echo "🎉 You can now translate complex PDFs perfectly using JS directly on your server!\n";
+// 1. Extract the actual Node binary
+echo "   Extracting node binary... ";
+$cmd = "tar -xf " . escapeshellarg($tmpFile) . " -C " . escapeshellarg($binDir) . " --strip-components=2 node-{$nodeVersion}-linux-x64/bin/node 2>&1";
+exec($cmd, $out, $code);
+if ($code === 0 && file_exists($nodePath)) {
+    chmod($nodePath, 0755);
+    echo "✅ DONE\n";
 } else {
-    echo "❌ Execution failed.\n   Your host might block executing local standalone binaries (e.g. 'noexec' mount).\n   Output: " . implode("\n", $testOut) . "\n";
-    unlink($nodePath); // Remove broken binary
+    die("❌ FAILED EXTRACTION\n");
+}
+
+// 2. Extract Core Libraries (to bin/node_modules)
+echo "   Extracting npm core... ";
+$cmd = "tar -xf " . escapeshellarg($tmpFile) . " -C " . escapeshellarg($binDir) . " --strip-components=2 \"node-{$nodeVersion}-linux-x64/lib/node_modules\" 2>&1";
+exec($cmd, $out2, $code2);
+if ($code2 === 0 && is_dir($binDir . '/node_modules/npm')) {
+    echo "✅ DONE\n";
+} else {
+    echo "❌ FAILED (libraries)\n";
+}
+
+// 3. Create Fixed Shims
+echo "   Creating fixed npm shim... ";
+$npmShim = "#!/bin/sh\n";
+$npmShim .= 'BASEDIR=$(dirname "$0")' . "\n";
+$npmShim .= '"$BASEDIR/node" "$BASEDIR/node_modules/npm/bin/npm-cli.js" "$@"' . "\n";
+file_put_contents($npmPath, $npmShim);
+chmod($npmPath, 0755);
+
+$npxShim = "#!/bin/sh\n";
+$npxShim .= 'BASEDIR=$(dirname "$0")' . "\n";
+$npxShim .= '"$BASEDIR/node" "$BASEDIR/node_modules/npm/bin/npx-cli.js" "$@"' . "\n";
+file_put_contents($binDir . '/npx', $npxShim);
+chmod($binDir . '/npx', 0755);
+echo "✅ DONE\n";
+
+@unlink($tmpFile);
+
+echo "\n4. Testing Node Execution...\n";
+exec(escapeshellarg($nodePath) . " -v 2>&1", $nodeOut, $nodeCode);
+if ($nodeCode === 0) {
+    echo "   ✅ Node.js v18 is RUNNING! (Version: " . $nodeOut[0] . ")\n";
+    echo "   Wait... testing npm shim... ";
+    exec("sh " . escapeshellarg($npmPath) . " -v 2>&1", $npmOut, $npmCode);
+    if ($npmCode === 0) {
+        echo "✅ npm is READY!\n";
+        echo "\n🎉 SUCCESS! Now run 'repair-node.php' to fix your PDFs.\n";
+    } else {
+        echo "❌ npm FAILED (" . ($npmOut[0] ?? 'No output') . ")\n";
+    }
+} else {
+    echo "❌ Node.js v18 also Segfaulted. Your host is extremely restricted.\n";
+    echo "   I will pivot to the PHP-only solution if this happens.\n";
 }
