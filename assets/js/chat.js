@@ -74,7 +74,7 @@
 
                 <!-- Header -->
                 <div class="lak24-chat-header">
-                    <div class="avatar"><img src="assets/img/laki.png" alt="laki"></div>
+                    <div class="avatar"><img src="assets/img/laki.jpg.jpeg" alt="laki"></div>
                     <div class="info">
                         <div class="name">laki</div>
                         <div class="status"><span class="dot"></span> متصل الآن</div>
@@ -89,7 +89,7 @@
                 <div class="lak24-chat-messages" id="lak24Messages">
                     <!-- Welcome message -->
                     <div class="lak24-welcome">
-                        <div class="welcome-icon"><img src="assets/img/laki.png" alt="laki" style="width: 80px; height: auto;"></div>
+                        <div class="welcome-icon"><img src="assets/img/laki.jpg.jpeg" alt="laki" style="width: 80px; height: auto;"></div>
                         <div class="welcome-title">laki</div>
                         <div class="welcome-text">${escapeHtml(CONFIG.welcomeMessage)}</div>
                     </div>
@@ -372,7 +372,7 @@
 
         if (role === 'bot') {
             msgDiv.innerHTML = `
-                <div class="msg-avatar"><img src="assets/img/laki.png" alt="laki"></div>
+                <div class="msg-avatar"><img src="assets/img/laki.jpg.jpeg" alt="laki"></div>
                 <div class="bubble" dir="auto">
                     ${renderMarkdown(content)}
                     <span class="time">${time}</span>
@@ -421,7 +421,7 @@
         const typing = document.createElement('div');
         typing.className = 'lak24-typing';
         typing.innerHTML = `
-            <div class="msg-avatar"><img src="assets/img/laki.png" alt="laki"></div>
+            <div class="msg-avatar"><img src="assets/img/laki.jpg.jpeg" alt="laki"></div>
             <div class="dots">
                 <div class="dot"></div>
                 <div class="dot"></div>

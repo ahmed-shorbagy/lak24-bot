@@ -127,7 +127,7 @@
 </head>
 <body>
     <div class="landing">
-        <div class="logo"><img src="assets/img/laki.png" alt="laki logo" style="width: 120px; height: auto;"></div>
+        <div class="logo"><img src="assets/img/laki.jpg.jpeg" alt="laki logo" style="width: 120px; height: auto;"></div>
         <h1>laki</h1>
         <p>بوت الدردشة الذكي المدعوم بالذكاء الاصطناعي<br>يساعدك في البحث عن العروض والترجمة وكتابة الرسائل</p>
 
