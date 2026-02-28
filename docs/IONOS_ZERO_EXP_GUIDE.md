@@ -30,18 +30,21 @@ On your local computer (where you are currently working), we need to "package" t
 
 ## Phase 3: Set Permissions (Crucial Step)
 
-The bot needs "permission" to save data on the server. If you skip this, it will crash.
+Some folders might be "hidden" or not yet created. If you don't see them, you must **create them manually** using the "New Folder" button in IONOS:
 
-1.  In the IONOS File Manager, look for these specific folders:
+1.  **Create these folders** if they are missing:
     - `data/`
     - `sessions/`
+    - `bot_logs/` (Note: We renamed this from `logs` to avoid IONOS system conflicts).
     - `cache/`
-    - `logs/`
     - `uploads/`
 2.  **Right-click** each folder one by one.
 3.  Select **Permissions** (or CHMOD).
 4.  Set the value to **755** or **775**. Ensure the box for "Write" is checked for the "Owner" and "Group".
 5.  Click **Save/Apply**.
+
+> [!NOTE]
+> If IONOS gives you an error about renaming or modifying the "logs" folder, ignore it. That is a system folder. Just make sure you create a **new** folder named `bot_logs` inside your bot directory.
 
 ---
 

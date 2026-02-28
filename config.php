@@ -82,7 +82,7 @@ return [
     // ─── Logging ─────────────────────────────────────────────────────
     'logging' => [
         'enabled'      => true,
-        'storage_path' => __DIR__ . '/logs/',
+        'storage_path' => __DIR__ . '/bot_logs/',
         'max_file_size'=> 5 * 1024 * 1024,  // 5MB per log file
         'log_api_calls'=> true,
         'log_errors'   => true,
