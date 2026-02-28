@@ -18,8 +18,27 @@ ignore_user_abort(true);
 
 header('Content-Type: text/plain; charset=utf-8');
 
-echo "Starting Awin Import...\n";
+echo "Starting Awin Porter...\n";
 echo "---------------------------\n";
+
+if (isset($_GET['action']) && $_GET['action'] === 'status') {
+    try {
+        $db = new PDO('sqlite:' . __DIR__ . '/data/awin_products.db');
+        $count = $db->query("SELECT count(*) FROM awin_products")->fetchColumn();
+        echo "CURRENT STATUS: $count products are successfully in the database.\n";
+        if ($count > 300000) {
+            echo "SUCCESS: Your database is ready! You can now test the bot.\n";
+        } else {
+            echo "WARNING: Only $count products found. You might need to re-run the import.\n";
+        }
+    } catch (Exception $e) {
+        echo "ERROR: Could not check database: " . $e->getMessage() . "\n";
+    }
+    echo "---------------------------\nDone.\n";
+    exit;
+}
+
+echo "Starting Awin Import...\n";
 
 try {
     $logger = new Logger($config['logging']);
