@@ -108,7 +108,9 @@ if ($hasFile) {
     }
     
     if (empty($userMessage)) {
-        $userMessage = 'Translate the following content accurately based on the detected language and the user context.';
+        $userMessage = 'Translate the following content accurately. 
+IMPORTANT: The text below is extracted from a PDF. It may contain some noisy characters or formatting codes. 
+IGNORE the noise and formatting marks. Focus ONLY on the human-readable text and translate it completely into English.';
     }
     
     // Add user message about the file upload

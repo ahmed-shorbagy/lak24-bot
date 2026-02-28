@@ -1,5 +1,4 @@
-const fs = require('fs');
-const { PDFParse } = require('pdf-parse');
+const pdf = require('pdf-parse');
 
 const pdfPath = process.argv[2];
 
@@ -16,19 +15,15 @@ if (!fs.existsSync(pdfPath)) {
 async function run() {
     try {
         const dataBuffer = fs.readFileSync(pdfPath);
-        const parser = new PDFParse({ data: dataBuffer });
 
-        // Extract text with custom page joiner for clear markers
-        const result = await parser.getText({
-            pageJoiner: '\n--- PAGE page_number of total_number ---\n'
-        });
+        // Extract text
+        const result = await pdf(dataBuffer);
 
         const output = {
             text: result.text,
-            pageCount: result.total
+            pageCount: result.numpages
         };
 
-        await parser.destroy();
         process.stdout.write(JSON.stringify(output));
     } catch (error) {
         console.error("Error parsing PDF: " + error.message);

@@ -72,8 +72,27 @@ To make the bot update prices automatically every night:
 6.  Click **Save**.
 
 ---
+6.  Click **Save**.
 
-## Step 6: Test it Live!
+---
+
+## Step 6: Integration (Show Bot on Your Main Site)
+
+Now that the bot is installed, you need to show it on your main website (`lak24.de`):
+
+1.  **Copy this code**:
+    ```html
+    <script src="https://chat.lak24.de/assets/js/embed.js"></script>
+    ```
+2.  **Where to paste it?**
+    - **PHP Site**: Open your common **`footer.php`** or **`header.php`** file. Paste the code right before the `</body>` tag (if in footer) or inside the `<head>` (if in header). If you don't have a common file, paste it at the bottom of every `.php` page. 
+    - **WordPress**: Go to your WordPress Dashboard -> Appearance -> Theme File Editor. Find **`footer.php`** and paste the code right before the `</body>` tag at the very bottom.
+    - **Standard HTML**: Open your website's main files (like `index.html`) and paste the code right before the `</body>` tag.
+3.  **Check your site**: Refresh your homepage. You should now see the **laki** icon in the bottom-right corner!
+
+---
+
+## Step 7: Test it Live!
 
 1.  Go to `https://chat.lak24.de`.
 2.  Ask: `I want a laptop under 700 EUR`.

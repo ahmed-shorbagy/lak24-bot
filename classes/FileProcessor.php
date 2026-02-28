@@ -10,6 +10,8 @@ if (!defined('LAK24_BOT')) {
     exit('Access denied');
 }
 
+require_once __DIR__ . '/SimplePDFExtractor.php';
+
 class FileProcessor
 {
     private array $uploadConfig;
@@ -60,33 +62,50 @@ class FileProcessor
         $tmpPath = $file['tmp_name'];
 
         try {
-            // Use Node.js script with pdf-parse for robust extraction
+            // 1. Try Node.js first (more powerful)
             $result = $this->extractPDFWithNode($tmpPath);
 
+            // 2. Fallback to PHP-Native if Node fails or is unavailable
             if (!$result['success'] || empty(trim($result['text'] ?? ''))) {
                 if ($this->logger) {
-                    $this->logger->warning('PDF extraction returned empty text or failed', [
+                    $this->logger->info('Node.js PDF extraction failed, trying PHP fallback', [
                         'filename' => $file['name'],
                         'error'    => $result['error'] ?? 'Empty text',
                     ]);
                 }
                 
-                return [
-                    'success' => false,
-                    'type'    => 'pdf',
-                    'data'    => null,
-                    'error'   => 'عذراً، لم نتمكن من استخراج نص من هذا الملف. يرجى التأكد من أن الملف يحتوي على نص قابل للقراءة.',
-                ];
+                $fallback = SimplePDFExtractor::extract($tmpPath);
+                
+                if (empty(trim($fallback['text']))) {
+                    return [
+                        'success' => false,
+                        'type'    => 'pdf',
+                        'data'    => null,
+                        'error'   => 'عذراً، لم نتمكن من استخراج نص من هذا الملف. يرجى التأكد من أن الملف يحتوي على نص قابل للقراءة.',
+                    ];
+                }
+
+                $text = $fallback['text'];
+                $pageCount = $fallback['pageCount'];
+            } else {
+                $text = $result['text'];
+                $pageCount = $result['pageCount'] ?? 1;
             }
 
-            $text = $result['text'];
-            $pageCount = $result['pageCount'] ?? 1;
+            // --- UTF-8 Safety Cleanup ---
+            if (function_exists('mb_convert_encoding')) {
+                $text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+            }
+            // Remove invalid UTF-8 sequences and non-printable control chars
+            $text = preg_replace('/[\x00-\x08\x10\x0B\x0C\x0E-\x19\x7F]|\xED[\xA0-\xBF].{3}/', '', $text);
+            $text = trim($text);
 
             if ($this->logger) {
-                $this->logger->info('PDF processed via Node.js', [
+                $this->logger->info('PDF processed successfully', [
                     'filename'    => $file['name'],
                     'text_length' => mb_strlen($text),
                     'page_count'  => $pageCount,
+                    'method'      => isset($fallback) ? 'php_fallback' : 'node_js'
                 ]);
             }
 
@@ -123,10 +142,19 @@ class FileProcessor
         $scriptPath = __DIR__ . '/../bin/pdf-extract.js';
         
         if (!file_exists($scriptPath)) {
-            throw new \Exception("Extraction script missing: $scriptPath");
+            return ['success' => false, 'error' => 'Extraction script missing'];
         }
 
-        $command = sprintf('node %s %s 2>&1',
+        // Check if we installed the standalone local Node binary
+        $localNode = __DIR__ . '/../bin/node';
+        if (file_exists($localNode) && is_executable($localNode)) {
+            $nodeCmd = escapeshellarg($localNode);
+        } else {
+            $nodeCmd = 'node'; // Fallback to system node (if available)
+        }
+
+        $command = sprintf('%s %s %s 2>&1',
+            $nodeCmd,
             escapeshellarg($scriptPath),
             escapeshellarg($pdfPath)
         );
@@ -137,20 +165,14 @@ class FileProcessor
 
         $rawOutput = implode("\n", $output);
 
-        if ($returnCode !== 0) {
-            if ($this->logger) {
-                $this->logger->error('Node.js PDF extraction error', ['error' => $rawOutput]);
-            }
-            return ['success' => false, 'error' => $rawOutput];
+        if ($returnCode !== 0 || empty($rawOutput)) {
+            return ['success' => false, 'error' => $rawOutput ?: 'No output from Node.js'];
         }
 
         $decoded = json_decode($rawOutput, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
-            return [
-                'success' => true, 
-                'text' => $rawOutput, // Fallback if not JSON
-                'pageCount' => 1
-            ];
+            // If it's not JSON, it's likely an error message or garbled output
+            return ['success' => false, 'error' => 'Invalid JSON output from Node.js: ' . substr($rawOutput, 0, 100)];
         }
 
         return array_merge(['success' => true], $decoded);
