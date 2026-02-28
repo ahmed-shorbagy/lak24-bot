@@ -1,75 +1,88 @@
-# Beginner's Guide: Deploying the lak24 Bot to IONOS
+# Ultimate Beginner's Guide: Deploying lak24 Bot to IONOS
 
-This guide is designed for anyone with zero technical experience. Follow these steps exactly to get your chatbot running on `chat.lak24.de`.
+This guide is tailored specifically for your IONOS setup. Follow these steps to ensure the bot works perfectly on `https://chat.lak24.de`.
 
 ---
 
-## Phase 1: Prepare your files for upload
+## Step 1: Prepare the Files (On your Computer)
 
-On your local computer (where you are currently working), we need to "package" the bot.
-
-1.  **Open your project folder** (the one named `Chatbot`).
-2.  **Select all files and folders EXCEPT** these two (they are too large and not needed):
+1.  **Open the project folder** (the one named `Chatbot`).
+2.  **Select everything** EXCEPT:
     - `node_modules/`
     - `.git/`
-3.  **Right-click** the selected items and choose **Compress to ZIP file**.
-4.  Name the final file something simple, like `bot-upload.zip`.
+3.  **Right-click** and select **Compress to ZIP file**. Name it `bot-release.zip`.
 
 ---
 
-## Phase 2: Upload to IONOS
+## Step 2: Upload to IONOS
 
-1.  Log in to your **IONOS Control Panel**.
-2.  Click on the **Hosting** box.
-3.  Inside the Hosting menu, find and click **File Manager**.
-4.  Navigate to the folder linked to your subdomain `chat.lak24.de` (Based on your screenshot, this is the `/Bot` folder).
-5.  Click the **Upload** button at the top and select your `bot-upload.zip` file.
-6.  Once uploaded, right-click the file and select **Extract** (or Unzip).
+1.  Log in to your **IONOS Control Panel** -> **Hosting** -> **File Manager**.
+2.  Navigate to the folder linked to your subdomain (your screenshot shows this is the **`/Bot`** folder).
+3.  Click **Upload** at the top and select your zip file.
+4.  Once uploaded, **Right-click** the zip file and choose **Extract**.
+
+> [!IMPORTANT]
+> All your files (like `config.php`, `index.php`, `chat.php`) should be directly inside the **`/Bot`** folder. If they are inside another subfolder like `/Bot/Chatbot/`, move them out so they are directly in `/Bot`.
 
 ---
 
-## Phase 3: Set Permissions (Crucial Step)
+## Step 3: Specific Folder Fixes (Permissions)
 
-Some folders might be "hidden" or not yet created. If you don't see them, you must **create them manually** using the "New Folder" button in IONOS:
+IONOS has special rules for some folders. Follow this exactly:
 
-1.  **Create these folders** if they are missing:
+1.  **If the following folders are missing**, click **"+ New Folder"** at the top to create them:
     - `data/`
     - `sessions/`
-    - `bot_logs/` (Note: We renamed this from `logs` to avoid IONOS system conflicts).
     - `cache/`
     - `uploads/`
-2.  **Right-click** each folder one by one.
-3.  Select **Permissions** (or CHMOD).
-4.  Set the value to **755** or **775**. Ensure the box for "Write" is checked for the "Owner" and "Group".
-5.  Click **Save/Apply**.
-
-> [!NOTE]
-> If IONOS gives you an error about renaming or modifying the "logs" folder, ignore it. That is a system folder. Just make sure you create a **new** folder named `bot_logs` inside your bot directory.
-
----
-
-## Phase 4: Fetch Product Data (Awin & Amazon)
-
-Currently, the bot doesn't know about your products. We need to "tell" it to download the data.
-
-1.  Open Chrome or your preferred browser.
-2.  Type this exact address: `https://chat.lak24.de/import-trigger.php`
-3.  **Wait**. It may take 1-2 minutes. Stay on the page until you see:
-    `SUCCESS: Imported [Number] products.`
-4.  **SECURITY STEP**: Go back to the IONOS File Manager and **DELETE** the file named `import-trigger.php`. This prevents strangers from resetting your database.
+2.  **The "logs" fix**: IONOS does not allow you to change the `logs` folder. 
+    - Click **"+ New Folder"** and create a NEW folder named **`bot_logs`**.
+3.  **Set Permissions (CHMOD)**:
+    - Right-click each of these: `data`, `sessions`, `cache`, `uploads`, and your new `bot_logs`.
+    - Select **Permissions**.
+    - Set the value to **755** (or check "Write" for Owner/Group).
+    - **Note**: Ignore the folder named `logs` entirely.
 
 ---
 
-## Phase 5: Test your Bot
+---
 
-1.  Go to `https://chat.lak24.de/index.php`.
-2.  Click the chat bubble Icon.
-3.  Type: `I want a laptop under 800 EUR`.
-4.  If it shows you real products with prices and links, **CONGRATULATIONS!** You have successfully deployed the bot.
+## Step 4: Activate the Product Database (Crucial Step)
+
+The bot needs to download products from lak24, Awin, and Amazon to show them to customers.
+
+1.  Open your browser and type: `https://chat.lak24.de/import-trigger.php`
+2.  **Wait for 3-5 minutes**. The product list is very large, so it takes time.
+3.  Even if the page looks like it is not moving, **do not close the tab**.
+4.  When you see **"SUCCESS: Imported [Number] products"**, you are done!
+5.  **SECURITY**: Go back to IONOS File Manager and **DELETE** the file `import-trigger.php` immediately.
 
 ---
 
-### Troubleshooting for Beginners:
-- **"Blank Page"**: Ensure your PHP version is set to 8.3 in the IONOS settings.
-- **"Unable to save"**: Return to Phase 3 and double-check your folder permissions.
-- **"No products found"**: Return to Phase 4 and make sure you saw the "SUCCESS" message.
+## Step 5: Setup Automatic Daily Updates (Cron Job)
+
+To make the bot update prices automatically every night:
+
+1.  Log in to **IONOS Control Panel** -> **Hosting** -> **Cron Jobs**.
+2.  Click **Create Cron Job**.
+3.  **Name**: `Lak24 Search Sync`.
+4.  **Schedule**: Select **Daily** (e.g., 3:00 AM).
+5.  **Command**: Use the one below (adjust the path if different in your File Manager):
+    `php /homepages/xx/dxxxxxxxx/htdocs/Bot/bin/import_awin.php`
+    *(Tip: You can find your "Absolute Path" in the IONOS File Manager footer or settings).*
+6.  Click **Save**.
+
+---
+
+## Step 6: Test it Live!
+
+1.  Go to `https://chat.lak24.de`.
+2.  Ask: `I want a laptop under 700 EUR`.
+3.  **Check**: It should show you real products with prices and links.
+
+---
+
+### Troubleshooting:
+- **"Import screen stuck"**: I have updated the script to handle long waits. Open the link again and give it 5 full minutes. 
+- **"Red Error/Permissions"**: Ensure `bot_logs/` folder exists and is set to **755**.
+- **"PHP Version"**: Verify your domain is set to **PHP 8.3** in IONOS.

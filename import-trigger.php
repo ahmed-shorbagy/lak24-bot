@@ -11,8 +11,11 @@ $config = require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/classes/Logger.php';
 require_once __DIR__ . '/classes/AwinDatabase.php';
 
-// Simple security check - you can add a password if you want
-// For now, let's just make it work.
+// Increase limits for large feed processing
+set_time_limit(0); 
+ini_set('memory_limit', '512M');
+ignore_user_abort(true);
+
 header('Content-Type: text/plain; charset=utf-8');
 
 echo "Starting Awin Import...\n";
