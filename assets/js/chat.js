@@ -13,7 +13,6 @@
 (function () {
     'use strict';
 
-    // ─── Configuration ───────────────────────────────────────────
     const CONFIG = {
         chatEndpoint: './chat.php',
         maxFileSize: 10 * 1024 * 1024, // 10MB
@@ -26,6 +25,7 @@
             'ترجم رسالة من الألمانية 🌐',
             'ساعدني في كتابة إيميل ✍️',
         ],
+        baseUrl: './', // Will be detected in init()
     };
 
     // ─── State ────────────────────────────────────────────────────
@@ -43,6 +43,7 @@
             if (s.src.includes('chat.js') || s.src.includes('embed.js')) {
                 const url = new URL(s.src);
                 const base = url.href.replace(/assets\/js\/(chat|embed)\.js.*$/, '');
+                CONFIG.baseUrl = base;
                 CONFIG.chatEndpoint = base + 'chat.php';
                 break;
             }
@@ -60,7 +61,7 @@
         container.innerHTML = `
             <!-- Toggle Button -->
             <button class="lak24-chat-toggle" id="lak24Toggle" aria-label="فتح المحادثة">
-                <svg class="icon-chat" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+                <img src="${CONFIG.baseUrl}assets/img/laki.jpg.jpeg" class="icon-chat" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
                 <svg class="icon-close" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
             </button>
 
@@ -74,7 +75,7 @@
 
                 <!-- Header -->
                 <div class="lak24-chat-header">
-                    <div class="avatar"><img src="assets/img/laki.jpg.jpeg" alt="laki"></div>
+                    <div class="avatar"><img src="${CONFIG.baseUrl}assets/img/laki.jpg.jpeg" alt="laki"></div>
                     <div class="info">
                         <div class="name">laki</div>
                         <div class="status"><span class="dot"></span> متصل الآن</div>
@@ -89,7 +90,7 @@
                 <div class="lak24-chat-messages" id="lak24Messages">
                     <!-- Welcome message -->
                     <div class="lak24-welcome">
-                        <div class="welcome-icon"><img src="assets/img/laki.jpg.jpeg" alt="laki" style="width: 80px; height: auto;"></div>
+                        <div class="welcome-icon"><img src="${CONFIG.baseUrl}assets/img/laki.jpg.jpeg" alt="laki" style="width: 80px; height: auto;"></div>
                         <div class="welcome-title">laki</div>
                         <div class="welcome-text">${escapeHtml(CONFIG.welcomeMessage)}</div>
                     </div>
@@ -372,7 +373,7 @@
 
         if (role === 'bot') {
             msgDiv.innerHTML = `
-                <div class="msg-avatar"><img src="assets/img/laki.jpg.jpeg" alt="laki"></div>
+                <div class="msg-avatar"><img src="${CONFIG.baseUrl}assets/img/laki.jpg.jpeg" alt="laki"></div>
                 <div class="bubble" dir="auto">
                     ${renderMarkdown(content)}
                     <span class="time">${time}</span>

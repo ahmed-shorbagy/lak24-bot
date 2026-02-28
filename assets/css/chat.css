@@ -49,6 +49,7 @@
     justify-content: center;
     transition: var(--lak24-transition);
     outline: none;
+    overflow: hidden;
 }
 
 .lak24-chat-toggle:hover {
@@ -67,7 +68,7 @@
     transition: var(--lak24-transition);
 }
 
-.lak24-chat-toggle.active svg.icon-chat {
+.lak24-chat-toggle.active .icon-chat {
     display: none;
 }
 

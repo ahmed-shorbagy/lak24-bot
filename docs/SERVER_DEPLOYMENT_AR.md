@@ -64,10 +64,9 @@
 1.  ادخل إلى **IONOS Control Panel** -> **Hosting** -> **Cron Jobs**.
 2.  اضغط على **Create Cron Job**.
 3.  **الاسم**: `Lak24 Search Sync`.
-4.  **الجدول الزمني (Schedule)**: اختر **Daily** (مثلاً الساعة 3:00 صباحاً).
-5.  **الأمر (Command)**: استخدم الأمر التالي (تأكد من تعديل المسار إذا كان مختلفاً في مدير الملفات لديك):
-    `php /homepages/xx/dxxxxxxxx/htdocs/Bot/bin/import_awin.php`
-    *(نصيحة: يمكنك العثور على "المسار المطلق - Absolute Path" في أسفل مدير الملفات في IONOS).*
+4.  **خيار (HTTP GET)**: الصق هذا الرابط بالضبط:
+    `https://chat.lak24.de/import-trigger.php`
+5.  **الجدول الزمني (Schedule)**: اختر **Daily** (مثلاً الساعة 3:00 صباحاً).
 6.  اضغط **Save**.
 
 ---

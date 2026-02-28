@@ -66,10 +66,9 @@ To make the bot update prices automatically every night:
 1.  Log in to **IONOS Control Panel** -> **Hosting** -> **Cron Jobs**.
 2.  Click **Create Cron Job**.
 3.  **Name**: `Lak24 Search Sync`.
-4.  **Schedule**: Select **Daily** (e.g., 3:00 AM).
-5.  **Command**: Use the one below (adjust the path if different in your File Manager):
-    `php /homepages/xx/dxxxxxxxx/htdocs/Bot/bin/import_awin.php`
-    *(Tip: You can find your "Absolute Path" in the IONOS File Manager footer or settings).*
+4.  **HTTP GET**: Paste this exact URL:
+    `https://chat.lak24.de/import-trigger.php`
+5.  **Schedule**: Select **Daily** (e.g., 3:00 AM).
 6.  Click **Save**.
 
 ---
