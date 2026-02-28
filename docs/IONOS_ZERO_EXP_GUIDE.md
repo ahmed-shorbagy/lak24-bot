@@ -52,8 +52,8 @@ IONOS has special rules for some folders. Follow this exactly:
 The bot needs to download products from lak24, Awin, and Amazon to show them to customers.
 
 1.  Open your browser and type: `https://chat.lak24.de/import-trigger.php`
-2.  **Wait for 3-5 minutes**. The product list is very large, so it takes time.
-3.  Even if the page looks like it is not moving, **do not close the tab**.
+2.  **Wait**. You will now see real-time updates like: `Progress: Imported 5000 products...`
+3.  **Do not close the tab** until you see the final message: `SUCCESS: Imported [Number] products`.
 4.  When you see **"SUCCESS: Imported [Number] products"**, you are done!
 5.  **SECURITY**: Go back to IONOS File Manager and **DELETE** the file `import-trigger.php` immediately.
 

@@ -25,7 +25,14 @@ try {
     $logger = new Logger($config['logging']);
     $awin   = new AwinDatabase($config['affiliate']['awin'], $logger);
 
-    $count = $awin->importFeed();
+    // Disable buffering
+    if (ob_get_level()) ob_end_clean();
+    ob_implicit_flush(true);
+
+    $count = $awin->importFeed(function($currentCount) {
+        echo "Progress: Imported $currentCount products...\n";
+        @flush();
+    });
 
     if ($count > 0) {
         echo "SUCCESS: Imported $count products.\n";

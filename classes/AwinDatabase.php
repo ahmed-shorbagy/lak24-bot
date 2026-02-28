@@ -58,7 +58,7 @@ class AwinDatabase
      * 
      * @return int Number of products imported
      */
-    public function importFeed(): int
+    public function importFeed(?callable $onProgress = null): int
     {
         $url = $this->config['data_feed_url'] ?? '';
         if (empty($url)) {
@@ -104,8 +104,13 @@ class AwinDatabase
                 $stmt->execute([$title, $price, $link, $image, $source]);
                 $count++;
 
+                // Progress update
+                if ($count % 500 === 0 && $onProgress) {
+                    $onProgress($count);
+                }
+
                 // Commit in batches to keep memory usage low and speed high
-                if ($count % 10000 === 0) {
+                if ($count % 5000 === 0) {
                     $this->db->commit();
                     $this->db->beginTransaction();
                 }
