@@ -236,41 +236,51 @@ if ($intent === 'offer_search') {
     $searchLinks = $search->generateSearchLinks($germanKeyword, $maxPrice);
 
     // Format the results for GPT to use
-    $header = $userLang === 'ar' ? 'ملاحظة للنظام — استخدم هذه الروابط الحقيقية فقط' : 'SYSTEM NOTE — Use ONLY these real results/links';
-    $linksText  = "\n\n[{$header}]\n";
-    $linksText .= "Search keyword used: {$germanKeyword}\n";
+    $linksText  = "\n\n[SYSTEM OFFER DATA — READ CAREFULLY]\n";
+    $linksText .= "Search keyword: {$germanKeyword}\n";
     if ($maxPrice !== null) {
         $linksText .= "Max budget: {$maxPrice} EUR\n";
     }
 
-    $useWebSearch = false;
+    $hasRealProducts = !empty($searchResults['results']);
 
-    if (!empty($searchResults['results'])) {
-        $linksText .= $userLang === 'ar' ? "\nتم العثور على المنتجات التالية:\n" : "\nFound specific product matches:\n";
+    if ($hasRealProducts) {
+        // We have REAL product data — present it
+        $linksText .= "\n--- VERIFIED PRODUCTS (from real databases) ---\n";
         $linksText .= $search->formatResultsForBot($searchResults);
+        $linksText .= "\nRULES: Present ONLY these products above. Each has a real title, price, and link.\n";
+        $linksText .= "You may rephrase the titles but NEVER change the prices or links.\n";
     } else {
-        // No local results — flag for web search fallback
-        $useWebSearch = true;
-        $linksText .= "\n[NO LOCAL RESULTS FOUND — Web search will be used to find real products.]\n";
-        $linksText .= "You MUST search the web for: \"{$germanKeyword}\" offers in Germany.\n";
-        $linksText .= "Present real products with real links and real prices.\n";
+        // NO product data — give ONLY search links
+        $linksText .= "\n--- NO SPECIFIC PRODUCTS FOUND IN DATABASE ---\n";
+        $linksText .= "⚠️ CRITICAL: You have ZERO verified products. Do NOT invent ANY product names, model numbers, or prices.\n";
     }
 
-    $linksText .= $userLang === 'ar' ? "\nروابط البحث المباشر:\n" : "\nDirect search category links:\n";
+    $linksText .= "\n--- REAL SEARCH LINKS (verified, working URLs) ---\n";
     foreach ($searchLinks as $link) {
         $linksText .= "• {$link['icon']} [{$link['name']}]({$link['url']})\n";
     }
 
-    $linksText .= "\nIMPORTANT INSTRUCTIONS FOR YOUR REPLY:\n";
+    $linksText .= "\n🚨 STRICT RULES FOR YOUR REPLY:\n";
     if ($userLang === 'ar') {
         $linksText .= "1. يجب أن يكون ردك باللغة العربية حصراً.\n";
     } else {
-        $linksText .= "1. You MUST reply in ENGLISH only.\n";
+        $linksText .= "1. Reply in the user's language.\n";
     }
-    $linksText .= "2. Present the specific products found (if any) and the direct search links clearly.\n";
-    $linksText .= "3. Highlight the BEST VALUE option. If a product exceeds the user's budget, warn them.\n";
-    $linksText .= "4. If NO specific products were found, suggest alternative search terms — never just say 'no results'.\n";
-    $linksText .= "5. Do NOT invent or hallucinate any other products or links.";
+
+    if ($hasRealProducts) {
+        $linksText .= "2. Present the verified products above with their EXACT prices and links.\n";
+        $linksText .= "3. Then present the search links below so the user can browse more options.\n";
+        $linksText .= "4. Highlight the best value option.\n";
+    } else {
+        $linksText .= "2. Tell the user you searched but didn't find specific products in your database.\n";
+        $linksText .= "3. Present the SEARCH LINKS above so they can browse directly on Amazon, eBay, idealo, etc.\n";
+        $linksText .= "4. Suggest they click these links to see current offers with real prices.\n";
+    }
+
+    $linksText .= "5. 🚫 ABSOLUTELY NEVER invent product names, model numbers, prices, or URLs. This is FORBIDDEN.\n";
+    $linksText .= "6. 🚫 NEVER create fake links like 'Amazon.de' or 'eBay.de' without using the exact URLs provided above.\n";
+    $linksText .= "7. Use ONLY the exact URLs provided in this data block. Copy-paste them exactly.";
 
     $enhancedMessage = $userMessage . $linksText;
 } elseif ($intent === 'contract_search') {
@@ -295,40 +305,8 @@ $sessions->addMessage($sessionId, 'user', $enhancedMessage);
 // Prepare messages for API
 $messages = $sessions->getMessagesForAPI($sessionId, $systemPrompt);
 
-// Initialize web search flag (set by offer_search when no local results)
-if (!isset($useWebSearch)) {
-    $useWebSearch = false;
-}
-
 // Send to GPT (streaming or regular)
-// If web search is needed, use the Responses API with web_search tool
-if ($useWebSearch && !$useStream) {
-    $logger->info('Using web search fallback for offer search', ['keyword' => $germanKeyword ?? '']);
-    $result = $chatgpt->sendMessageWithWebSearch($messages, $userLang);
-    
-    if (!$result['success']) {
-        // If web search fails, fall back to regular API
-        $logger->warning('Web search failed, falling back to regular API', ['error' => $result['error']]);
-        $result = $chatgpt->sendMessage($messages);
-    }
-
-    if (!$result['success']) {
-        $apiErrorMsg = $userLang === 'ar'
-            ? 'عذراً، حدث خطأ أثناء المعالجة. يرجى المحاولة مرة أخرى.'
-            : 'Sorry, an error occurred during processing. Please try again.';
-        jsonResponse(500, ['error' => $apiErrorMsg, 'session_id' => $sessionId]);
-    }
-
-    $reply = $result['message'];
-    $sessions->addMessage($sessionId, 'assistant', $reply);
-
-    jsonResponse(200, [
-        'reply'      => $reply,
-        'session_id' => $sessionId,
-        'type'       => 'web_search',
-        'usage'      => $result['usage'] ?? [],
-    ]);
-} elseif ($useStream) {
+if ($useStream) {
     // SSE Streaming response
     header('Content-Type: text/event-stream');
     header('Cache-Control: no-cache');
