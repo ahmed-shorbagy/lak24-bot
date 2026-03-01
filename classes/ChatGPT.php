@@ -179,16 +179,68 @@ class ChatGPT
                 continue;
             }
 
-            // Extract text from the Responses API output
+            // Extract text and URL citations from the Responses API output
             $message = '';
+            $citations = [];
             if (isset($data['output']) && is_array($data['output'])) {
                 foreach ($data['output'] as $outputItem) {
                     if (($outputItem['type'] ?? '') === 'message' && isset($outputItem['content'])) {
                         foreach ($outputItem['content'] as $content) {
                             if (($content['type'] ?? '') === 'output_text') {
-                                $message .= $content['text'];
+                                $text = $content['text'];
+                                
+                                // Extract URL citations from annotations
+                                if (!empty($content['annotations'])) {
+                                    $annotationCites = [];
+                                    foreach ($content['annotations'] as $annotation) {
+                                        if (($annotation['type'] ?? '') === 'url_citation') {
+                                            $url = $annotation['url'] ?? '';
+                                            $title = $annotation['title'] ?? '';
+                                            if (!empty($url)) {
+                                                $annotationCites[] = [
+                                                    'url' => $url,
+                                                    'title' => $title,
+                                                    'start' => $annotation['start_index'] ?? 0,
+                                                    'end' => $annotation['end_index'] ?? 0,
+                                                ];
+                                                $citations[] = ['url' => $url, 'title' => $title];
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Replace citation markers in text with real URLs (reverse order)
+                                    usort($annotationCites, function($a, $b) {
+                                        return $b['start'] - $a['start'];
+                                    });
+                                    
+                                    foreach ($annotationCites as $cite) {
+                                        if ($cite['start'] >= 0 && $cite['end'] > $cite['start'] && $cite['end'] <= strlen($text)) {
+                                            $citedText = substr($text, $cite['start'], $cite['end'] - $cite['start']);
+                                            // Only replace short citation markers, not entire paragraphs
+                                            if (strlen($citedText) < 200) {
+                                                $replacement = "[{$citedText}]({$cite['url']})";
+                                                $text = substr_replace($text, $replacement, $cite['start'], $cite['end'] - $cite['start']);
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                $message .= $text;
                             }
                         }
+                    }
+                }
+            }
+            
+            // If citations exist but no URLs appear in message, append them as a source list
+            if (!empty($citations) && strpos($message, 'http') === false) {
+                $message .= "\n\nSources:\n";
+                $seen = [];
+                foreach ($citations as $cite) {
+                    if (!empty($cite['url']) && !in_array($cite['url'], $seen)) {
+                        $label = !empty($cite['title']) ? $cite['title'] : $cite['url'];
+                        $message .= "- [{$label}]({$cite['url']})\n";
+                        $seen[] = $cite['url'];
                     }
                 }
             }

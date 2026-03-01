@@ -355,13 +355,16 @@ class OfferSearch
         libxml_clear_errors();
 
         $xpath    = new \DOMXPath($doc);
-        $products = $xpath->query('//div[contains(@class, "listview__item")]|//article[contains(@class, "product")]');
+        
+        // Verified selectors from browser: .galleryview__name-link and .galleryview__price-link span
+        // Also keep legacy selectors as fallback
+        $products = $xpath->query('//div[contains(@class, "galleryview__item")]|//div[contains(@class, "listview__item")]|//article[contains(@class, "product")]');
 
         if ($products && $products->length > 0) {
             foreach ($products as $product) {
-                $title = $this->extractText($xpath, './/a[contains(@class, "listview__name")]|.//span[contains(@class, "product__name")]', $product);
-                $price = $this->extractPrice($xpath, './/*[contains(@class, "listview__price")]|.//*[contains(@class, "product__price")]', $product);
-                $link  = $this->extractAttribute($xpath, './/a/@href', $product);
+                $title = $this->extractText($xpath, './/a[contains(@class, "galleryview__name-link")]|.//a[contains(@class, "listview__name")]|.//span[contains(@class, "product__name")]', $product);
+                $price = $this->extractPrice($xpath, './/*[contains(@class, "galleryview__price-link")]|.//*[contains(@class, "listview__price")]|.//*[contains(@class, "product__price")]', $product);
+                $link  = $this->extractAttribute($xpath, './/a[contains(@class, "galleryview__name-link")]|.//a[contains(@class, "listview__name")]|.//a/@href', $product);
 
                 if (!empty($title) && $price !== null) {
                     if ($this->isAccessory($title) && !$this->isAccessoryRequested($query)) {
