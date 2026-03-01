@@ -94,6 +94,128 @@ class ChatGPT
     }
 
     /**
+     * Send a message with web search enabled (OpenAI Responses API)
+     * 
+     * Uses the built-in web_search tool to let GPT browse the internet
+     * for real product offers when local databases return no results.
+     * 
+     * @param array  $messages   Messages array (OpenAI format)
+     * @param string $userLang   User's language code ('ar', 'de', 'en')
+     * @return array ['success' => bool, 'message' => string, 'error' => string|null]
+     */
+    public function sendMessageWithWebSearch(array $messages, string $userLang = 'en'): array
+    {
+        // The Responses API uses a different format: convert messages to input
+        $input = [];
+        foreach ($messages as $msg) {
+            $input[] = [
+                'role'    => $msg['role'],
+                'content' => $msg['content'],
+            ];
+        }
+
+        $payload = [
+            'model' => $this->model,
+            'input' => $input,
+            'tools' => [
+                [
+                    'type' => 'web_search_preview',
+                ],
+            ],
+            'tool_choice'        => 'auto',
+            'temperature'        => $this->temperature,
+        ];
+
+        // Use the Responses API endpoint
+        $responsesUrl = 'https://api.openai.com/v1/responses';
+
+        $headers = [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $this->apiKey,
+        ];
+
+        $lastError = '';
+
+        for ($attempt = 1; $attempt <= $this->maxRetries; $attempt++) {
+            $startTime = microtime(true);
+
+            $ch = curl_init($responsesUrl);
+            curl_setopt_array($ch, [
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($payload),
+                CURLOPT_HTTPHEADER     => $headers,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 120,
+                CURLOPT_SSL_VERIFYPEER => true,
+            ]);
+
+            $response = curl_exec($ch);
+            $duration = microtime(true) - $startTime;
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr  = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlErr) {
+                $lastError = "cURL error: {$curlErr}";
+                if ($attempt < $this->maxRetries) sleep($attempt);
+                continue;
+            }
+
+            $data = json_decode($response, true);
+
+            if ($httpCode !== 200) {
+                $errorMsg = $data['error']['message'] ?? "HTTP {$httpCode}";
+                $lastError = $errorMsg;
+                if ($this->logger) {
+                    $this->logger->error("Web search API error (attempt {$attempt})", [
+                        'http_code' => $httpCode,
+                        'error'     => $errorMsg,
+                    ]);
+                }
+                if (in_array($httpCode, [401, 403, 400])) {
+                    return ['success' => false, 'message' => '', 'error' => $errorMsg, 'usage' => []];
+                }
+                if ($attempt < $this->maxRetries) sleep($attempt);
+                continue;
+            }
+
+            // Extract text from the Responses API output
+            $message = '';
+            if (isset($data['output']) && is_array($data['output'])) {
+                foreach ($data['output'] as $outputItem) {
+                    if (($outputItem['type'] ?? '') === 'message' && isset($outputItem['content'])) {
+                        foreach ($outputItem['content'] as $content) {
+                            if (($content['type'] ?? '') === 'output_text') {
+                                $message .= $content['text'];
+                            }
+                        }
+                    }
+                }
+            }
+
+            if ($this->logger) {
+                $this->logger->apiCall('responses (web_search)', $data['usage']['total_tokens'] ?? 0, $duration, [
+                    'model' => $payload['model'],
+                ]);
+            }
+
+            return [
+                'success' => true,
+                'message' => $message,
+                'error'   => null,
+                'usage'   => $data['usage'] ?? [],
+            ];
+        }
+
+        return [
+            'success' => false,
+            'message' => '',
+            'error'   => "Web search failed after {$this->maxRetries} attempts: {$lastError}",
+            'usage'   => [],
+        ];
+    }
+
+    /**
      * Send a streaming request (Server-Sent Events)
      *
      * @param array    $messages Messages array

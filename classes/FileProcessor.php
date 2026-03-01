@@ -12,6 +12,12 @@ if (!defined('LAK24_BOT')) {
 
 require_once __DIR__ . '/SimplePDFExtractor.php';
 
+// Load Composer autoloader for smalot/pdfparser (professional PDF library)
+$composerAutoload = __DIR__ . '/../vendor/autoload.php';
+if (file_exists($composerAutoload)) {
+    require_once $composerAutoload;
+}
+
 class FileProcessor
 {
     private array $uploadConfig;
@@ -65,28 +71,42 @@ class FileProcessor
             // 1. Try Node.js first (more powerful)
             $result = $this->extractPDFWithNode($tmpPath);
 
-            // 2. Fallback to PHP-Native if Node fails or is unavailable
+            // 2. Fallback: Try smalot/pdfparser (professional PHP library)
             if (!$result['success'] || empty(trim($result['text'] ?? ''))) {
                 if ($this->logger) {
-                    $this->logger->info('Node.js PDF extraction failed, trying PHP fallback', [
+                    $this->logger->info('Node.js PDF extraction failed, trying smalot/pdfparser', [
                         'filename' => $file['name'],
                         'error'    => $result['error'] ?? 'Empty text',
                     ]);
                 }
                 
-                $fallback = SimplePDFExtractor::extract($tmpPath);
+                $smalotResult = $this->extractPDFWithSmalot($tmpPath);
                 
-                if (empty(trim($fallback['text']))) {
-                    return [
-                        'success' => false,
-                        'type'    => 'pdf',
-                        'data'    => null,
-                        'error'   => 'عذراً، لم نتمكن من استخراج نص من هذا الملف. يرجى التأكد من أن الملف يحتوي على نص قابل للقراءة.',
-                    ];
-                }
+                if ($smalotResult['success'] && !empty(trim($smalotResult['text'] ?? ''))) {
+                    $text = $smalotResult['text'];
+                    $pageCount = $smalotResult['pageCount'];
+                } else {
+                    // 3. Last resort: SimplePDFExtractor
+                    if ($this->logger) {
+                        $this->logger->info('smalot/pdfparser failed too, trying SimplePDFExtractor', [
+                            'error' => $smalotResult['error'] ?? 'Empty text',
+                        ]);
+                    }
+                    
+                    $fallback = SimplePDFExtractor::extract($tmpPath);
+                    
+                    if (empty(trim($fallback['text']))) {
+                        return [
+                            'success' => false,
+                            'type'    => 'pdf',
+                            'data'    => null,
+                            'error'   => 'عذراً، لم نتمكن من استخراج نص من هذا الملف. يرجى التأكد من أن الملف يحتوي على نص قابل للقراءة.',
+                        ];
+                    }
 
-                $text = $fallback['text'];
-                $pageCount = $fallback['pageCount'];
+                    $text = $fallback['text'];
+                    $pageCount = $fallback['pageCount'];
+                }
             } else {
                 $text = $result['text'];
                 $pageCount = $result['pageCount'] ?? 1;
@@ -105,7 +125,7 @@ class FileProcessor
                     'filename'    => $file['name'],
                     'text_length' => mb_strlen($text),
                     'page_count'  => $pageCount,
-                    'method'      => isset($fallback) ? 'php_fallback' : 'node_js'
+                    'method'      => isset($smalotResult) && $smalotResult['success'] ? 'smalot_pdfparser' : (isset($fallback) ? 'php_simple' : 'node_js')
                 ]);
             }
 
@@ -176,6 +196,56 @@ class FileProcessor
         }
 
         return array_merge(['success' => true], $decoded);
+    }
+
+
+    /**
+     * Extract text from PDF using smalot/pdfparser (professional PHP library)
+     * Handles CIDFont, ToUnicode CMaps, font subsetting, and all modern PDF encodings.
+     */
+    private function extractPDFWithSmalot(string $pdfPath): array
+    {
+        if (!class_exists('\Smalot\PdfParser\Parser')) {
+            return ['success' => false, 'error' => 'smalot/pdfparser not installed', 'text' => '', 'pageCount' => 0];
+        }
+
+        try {
+            $parser = new \Smalot\PdfParser\Parser();
+            $pdf = $parser->parseFile($pdfPath);
+
+            $pages = $pdf->getPages();
+            $pageCount = count($pages);
+            $textParts = [];
+
+            foreach ($pages as $i => $page) {
+                $pageText = $page->getText();
+                if (!empty(trim($pageText))) {
+                    $textParts[] = "--- Page " . ($i + 1) . " ---\n" . trim($pageText);
+                }
+            }
+
+            $text = implode("\n\n", $textParts);
+
+            // UTF-8 safety cleanup
+            if (function_exists('mb_convert_encoding')) {
+                $text = @mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+            }
+            $text = preg_replace('/[\x00-\x08\x10\x0B\x0C\x0E-\x19\x7F]/', '', $text);
+
+            return [
+                'success'   => !empty(trim($text)),
+                'text'      => trim($text),
+                'pageCount' => $pageCount ?: 1,
+                'error'     => empty(trim($text)) ? 'No text extracted' : null,
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success'   => false,
+                'text'      => '',
+                'pageCount' => 0,
+                'error'     => 'smalot/pdfparser error: ' . $e->getMessage(),
+            ];
+        }
     }
 
 

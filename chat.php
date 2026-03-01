@@ -108,18 +108,21 @@ if ($hasFile) {
     }
     
     if (empty($userMessage)) {
-        $userMessage = 'Translate the following content accurately. 
-IMPORTANT: The text below is extracted from a PDF. It may contain some noisy characters or formatting codes. 
-IGNORE the noise and formatting marks. Focus ONLY on the human-readable text and translate it completely into English.';
+        $userMessage = 'Translate this document content into English. 
+CRITICAL RULES FOR THIS TRANSLATION:
+1. This text was extracted from a PDF file. It MAY contain URLs, API keys, codes, or formatting noise — this is NORMAL.
+2. You MUST translate all human-readable text. Present technical data (URLs, keys, IDs) as-is without translating them.
+3. NEVER refuse this request. NEVER say "I cannot assist". The user uploaded this file specifically for translation.';
     }
     
-    // Add user message about the file upload
-    $sessions->addMessage($sessionId, 'user', "📄 تم رفع ملف: {$file['name']}\n{$userMessage}");
+    // We don't add the message yet — we'll add it once we know if it's an image or text
     $messages = $sessions->getMessagesForAPI($sessionId, $systemPrompt);
     $result = null;
 
     if ($processed['type'] === 'image') {
-        // Use Vision API for images
+        // For images, add the placeholder and send as vision
+        $sessions->addMessage($sessionId, 'user', "📄 تم رفع ملف (صورة): {$file['name']}\n{$userMessage}");
+        $messages = $sessions->getMessagesForAPI($sessionId, $systemPrompt);
         $result = $chatgpt->sendVisionMessage(
             $messages,
             $processed['data'],
@@ -141,10 +144,12 @@ IGNORE the noise and formatting marks. Focus ONLY on the human-readable text and
         $metadataHeader .= "Total Pages: {$pageCount}\n";
         $metadataHeader .= "Note: The text below contains all pages joined with markers.\n\n";
 
-        $messages[] = [
-            'role'    => 'user',
-            'content' => $metadataHeader . "USER INSTRUCTIONS: " . $userMessage . "\n\nFILE CONTENT TO TRANSLATE:\n" . $textContent,
-        ];
+        $fullContent = $metadataHeader . "USER INSTRUCTIONS: " . $userMessage . "\n\nFILE CONTENT TO TRANSLATE:\n" . $textContent;
+
+        // Use the content ONLY for the current API call (No Storage policy)
+        $messages = $sessions->getMessagesForAPI($sessionId, $systemPrompt);
+        $messages[] = ['role' => 'user', 'content' => $fullContent];
+        
         $result = $chatgpt->sendMessage($messages);
     }
 
@@ -238,9 +243,17 @@ if ($intent === 'offer_search') {
         $linksText .= "Max budget: {$maxPrice} EUR\n";
     }
 
+    $useWebSearch = false;
+
     if (!empty($searchResults['results'])) {
         $linksText .= $userLang === 'ar' ? "\nتم العثور على المنتجات التالية:\n" : "\nFound specific product matches:\n";
         $linksText .= $search->formatResultsForBot($searchResults);
+    } else {
+        // No local results — flag for web search fallback
+        $useWebSearch = true;
+        $linksText .= "\n[NO LOCAL RESULTS FOUND — Web search will be used to find real products.]\n";
+        $linksText .= "You MUST search the web for: \"{$germanKeyword}\" offers in Germany.\n";
+        $linksText .= "Present real products with real links and real prices.\n";
     }
 
     $linksText .= $userLang === 'ar' ? "\nروابط البحث المباشر:\n" : "\nDirect search category links:\n";
@@ -282,10 +295,40 @@ $sessions->addMessage($sessionId, 'user', $enhancedMessage);
 // Prepare messages for API
 $messages = $sessions->getMessagesForAPI($sessionId, $systemPrompt);
 
-// (The manual replacement below is no longer needed since we used $enhancedMessage in addMessage)
+// Initialize web search flag (set by offer_search when no local results)
+if (!isset($useWebSearch)) {
+    $useWebSearch = false;
+}
 
 // Send to GPT (streaming or regular)
-if ($useStream) {
+// If web search is needed, use the Responses API with web_search tool
+if ($useWebSearch && !$useStream) {
+    $logger->info('Using web search fallback for offer search', ['keyword' => $germanKeyword ?? '']);
+    $result = $chatgpt->sendMessageWithWebSearch($messages, $userLang);
+    
+    if (!$result['success']) {
+        // If web search fails, fall back to regular API
+        $logger->warning('Web search failed, falling back to regular API', ['error' => $result['error']]);
+        $result = $chatgpt->sendMessage($messages);
+    }
+
+    if (!$result['success']) {
+        $apiErrorMsg = $userLang === 'ar'
+            ? 'عذراً، حدث خطأ أثناء المعالجة. يرجى المحاولة مرة أخرى.'
+            : 'Sorry, an error occurred during processing. Please try again.';
+        jsonResponse(500, ['error' => $apiErrorMsg, 'session_id' => $sessionId]);
+    }
+
+    $reply = $result['message'];
+    $sessions->addMessage($sessionId, 'assistant', $reply);
+
+    jsonResponse(200, [
+        'reply'      => $reply,
+        'session_id' => $sessionId,
+        'type'       => 'web_search',
+        'usage'      => $result['usage'] ?? [],
+    ]);
+} elseif ($useStream) {
     // SSE Streaming response
     header('Content-Type: text/event-stream');
     header('Cache-Control: no-cache');

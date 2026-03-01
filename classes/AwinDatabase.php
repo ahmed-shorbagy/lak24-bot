@@ -148,9 +148,9 @@ class AwinDatabase
      */
     public function search(string $query, ?float $maxPrice = null, int $limit = 5): array
     {
-        // Prepare FTS query string e.g. "iphone"* AND "15"*
+        // Prepare FTS query - keep words >= 2 chars (was 3, which dropped "TV", "PC")
         $words = array_filter(explode(' ', $query), function($w) { 
-            return mb_strlen($w) > 2; // Skip tiny words
+            return mb_strlen(trim($w)) >= 2;
         });
 
         if (empty($words)) {
@@ -161,13 +161,30 @@ class AwinDatabase
         $matchTerms = array_map(function($w) { 
             return '"' . str_replace('"', '""', $w) . '"*'; 
         }, $words);
-        $match = implode(' AND ', $matchTerms);
 
+        // Strategy: Try AND first (most relevant), fall back to OR (broader)
+        $matchAND = implode(' AND ', $matchTerms);
+        $matchOR  = implode(' OR ', $matchTerms);
+
+        $results = $this->executeFTSQuery($matchAND, $maxPrice, $limit);
+
+        // If AND returned nothing, try OR for broader matches
+        if (empty($results) && count($words) > 1) {
+            $results = $this->executeFTSQuery($matchOR, $maxPrice, $limit);
+        }
+        
+        return $results;
+    }
+
+    /**
+     * Execute an FTS5 query and return formatted results
+     */
+    private function executeFTSQuery(string $match, ?float $maxPrice, int $limit): array
+    {
         try {
             $sql = "SELECT title, price, link, image, source FROM awin_products WHERE awin_products MATCH :match";
             
             if ($maxPrice !== null) {
-                // In FTS5, you can filter on UNINDEXED columns after the MATCH
                 $sql .= " AND price <= :maxprice";
             }
             
@@ -189,7 +206,7 @@ class AwinDatabase
                     'price_formatted' => number_format((float)$row['price'], 2, ',', '.') . ' €',
                     'link'            => $row['link'],
                     'image'           => $row['image'],
-                    'source'          => $row['source'] ? $row['source'] : 'متجر شريك', // Just show merchant name, hide 'Awin' backend details
+                    'source'          => $row['source'] ? $row['source'] : 'متجر شريك',
                     'source_icon'     => '🏷️'
                 ];
             }
