@@ -251,9 +251,35 @@ if ($intent === 'offer_search') {
         $linksText .= "\nRULES: Present ONLY these products above. Each has a real title, price, and link.\n";
         $linksText .= "You may rephrase the titles but NEVER change the prices or links.\n";
     } else {
-        // NO product data — give ONLY search links
-        $linksText .= "\n--- NO SPECIFIC PRODUCTS FOUND IN DATABASE ---\n";
-        $linksText .= "⚠️ CRITICAL: You have ZERO verified products. Do NOT invent ANY product names, model numbers, or prices.\n";
+        // NO local results — try Web Search Fallback
+        $logger->info('No local results, trying web search fallback', ['keyword' => $germanKeyword]);
+        
+        // Build a focused search prompt (NOT the full conversation — that causes hallucination)
+        $priceFilter = $maxPrice ? " unter {$maxPrice} Euro" : "";
+        $webSearchPrompt = [
+            [
+                'role' => 'system',
+                'content' => "You are a product search assistant for Germany. Search the web and return ONLY real products you find. For each product, include: product name, price in EUR, store name, and the EXACT URL. Format as a numbered list. Do NOT invent any products. If you cannot find real products, say 'Keine Produkte gefunden'. Reply in plain text, no markdown."
+            ],
+            [
+                'role' => 'user',
+                'content' => "Suche: {$germanKeyword}{$priceFilter} kaufen in Deutschland. Finde 3-5 aktuelle Angebote mit echten Preisen und Links."
+            ]
+        ];
+        
+        $webResult = $chatgpt->sendMessageWithWebSearch($webSearchPrompt, $userLang);
+        
+        if ($webResult['success'] && !empty(trim($webResult['message']))) {
+            $logger->info('Web search returned results', ['length' => strlen($webResult['message'])]);
+            $linksText .= "\n--- PRODUCTS FOUND VIA LIVE WEB SEARCH ---\n";
+            $linksText .= $webResult['message'] . "\n";
+            $linksText .= "\nRULES: Present these web search results to the user. These are REAL products found online just now.\n";
+            $linksText .= "Use the EXACT product names, prices, and URLs from above. Do NOT modify or invent new ones.\n";
+        } else {
+            $logger->warning('Web search also returned no results', ['error' => $webResult['error'] ?? 'empty']);
+            $linksText .= "\n--- NO PRODUCTS FOUND (database and web search both returned empty) ---\n";
+            $linksText .= "Tell the user no specific products were found, but they can browse the search links below.\n";
+        }
     }
 
     $linksText .= "\n--- REAL SEARCH LINKS (verified, working URLs) ---\n";
@@ -270,17 +296,17 @@ if ($intent === 'offer_search') {
 
     if ($hasRealProducts) {
         $linksText .= "2. Present the verified products above with their EXACT prices and links.\n";
-        $linksText .= "3. Then present the search links below so the user can browse more options.\n";
+        $linksText .= "3. Then present the search links so the user can browse more options.\n";
         $linksText .= "4. Highlight the best value option.\n";
     } else {
-        $linksText .= "2. Tell the user you searched but didn't find specific products in your database.\n";
-        $linksText .= "3. Present the SEARCH LINKS above so they can browse directly on Amazon, eBay, idealo, etc.\n";
-        $linksText .= "4. Suggest they click these links to see current offers with real prices.\n";
+        $linksText .= "2. Present the products from the data above (if any were found via web search) with their EXACT names, prices, and links.\n";
+        $linksText .= "3. Also present the search links so the user can browse more options.\n";
+        $linksText .= "4. If products were found, highlight the best value option.\n";
     }
 
     $linksText .= "5. 🚫 ABSOLUTELY NEVER invent product names, model numbers, prices, or URLs. This is FORBIDDEN.\n";
-    $linksText .= "6. 🚫 NEVER create fake links like 'Amazon.de' or 'eBay.de' without using the exact URLs provided above.\n";
-    $linksText .= "7. Use ONLY the exact URLs provided in this data block. Copy-paste them exactly.";
+    $linksText .= "6. 🚫 NEVER create fake links. Use ONLY the exact URLs provided in this data block.\n";
+    $linksText .= "7. Copy-paste URLs exactly as provided above.";
 
     $enhancedMessage = $userMessage . $linksText;
 } elseif ($intent === 'contract_search') {
