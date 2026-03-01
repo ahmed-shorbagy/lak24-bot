@@ -251,34 +251,34 @@ if ($intent === 'offer_search') {
         $linksText .= "\nRULES: Present ONLY these products above. Each has a real title, price, and link.\n";
         $linksText .= "You may rephrase the titles but NEVER change the prices or links.\n";
     } else {
-        // NO local results — try Web Search Fallback
+        // NO local results — try Web Search Fallback via idealo.de
         $logger->info('No local results, trying web search fallback', ['keyword' => $germanKeyword]);
         
-        // Build a focused search prompt (NOT the full conversation — that causes hallucination)
-        $priceFilter = $maxPrice ? " unter {$maxPrice} Euro" : "";
+        $priceFilter = $maxPrice ? " bis {$maxPrice} Euro" : "";
         $webSearchPrompt = [
             [
                 'role' => 'system',
-                'content' => "You are a product search assistant for Germany. Search the web and return ONLY real products you find. For each product, include: product name, price in EUR, store name, and the EXACT URL. Format as a numbered list. Do NOT invent any products. If you cannot find real products, say 'Keine Produkte gefunden'. Reply in plain text, no markdown."
+                'content' => "You are a German product price search engine. You search idealo.de (Germany's biggest price comparison site) to find real products with real prices.\n\nSTRICT OUTPUT FORMAT — return EXACTLY this format for each product:\nProduct: [exact product name]\nPrice: [price] EUR\nStore: [store name from idealo]\nLink: [exact idealo.de product URL]\n---\n\nRULES:\n- Search idealo.de for the requested product\n- Return 3-5 products with their idealo.de product page URLs\n- Each URL must start with https://www.idealo.de/\n- Include the cheapest available price shown on idealo\n- Do NOT invent products or URLs\n- If nothing found, respond with ONLY: NO_RESULTS"
             ],
             [
                 'role' => 'user',
-                'content' => "Suche: {$germanKeyword}{$priceFilter} kaufen in Deutschland. Finde 3-5 aktuelle Angebote mit echten Preisen und Links."
+                'content' => "{$germanKeyword}{$priceFilter} site:idealo.de"
             ]
         ];
         
         $webResult = $chatgpt->sendMessageWithWebSearch($webSearchPrompt, $userLang);
         
-        if ($webResult['success'] && !empty(trim($webResult['message']))) {
+        if ($webResult['success'] && !empty(trim($webResult['message'])) && stripos($webResult['message'], 'NO_RESULTS') === false) {
             $logger->info('Web search returned results', ['length' => strlen($webResult['message'])]);
-            $linksText .= "\n--- PRODUCTS FOUND VIA LIVE WEB SEARCH ---\n";
+            $linksText .= "\n--- PRODUCTS FOUND VIA LIVE PRICE SEARCH (idealo.de) ---\n";
             $linksText .= $webResult['message'] . "\n";
-            $linksText .= "\nRULES: Present these web search results to the user. These are REAL products found online just now.\n";
-            $linksText .= "Use the EXACT product names, prices, and URLs from above. Do NOT modify or invent new ones.\n";
+            $linksText .= "\nRULES: Present these products to the user. Use their EXACT names, prices, and URLs.\n";
+            $linksText .= "Each link goes to idealo.de where they can compare prices and buy from the cheapest store.\n";
+            $linksText .= "Make each product link CLICKABLE. Do NOT modify URLs.\n";
         } else {
             $logger->warning('Web search also returned no results', ['error' => $webResult['error'] ?? 'empty']);
-            $linksText .= "\n--- NO PRODUCTS FOUND (database and web search both returned empty) ---\n";
-            $linksText .= "Tell the user no specific products were found, but they can browse the search links below.\n";
+            $linksText .= "\n--- NO PRODUCTS FOUND (searched database + web) ---\n";
+            $linksText .= "Tell the user you searched but couldn't find specific products. Present the search links below.\n";
         }
     }
 
@@ -306,7 +306,8 @@ if ($intent === 'offer_search') {
 
     $linksText .= "5. 🚫 ABSOLUTELY NEVER invent product names, model numbers, prices, or URLs. This is FORBIDDEN.\n";
     $linksText .= "6. 🚫 NEVER create fake links. Use ONLY the exact URLs provided in this data block.\n";
-    $linksText .= "7. Copy-paste URLs exactly as provided above.";
+    $linksText .= "7. Copy-paste URLs exactly as provided above.\n";
+    $linksText .= "8. ⚠️ Do NOT include the legal disclaimer for product offer responses.";
 
     $enhancedMessage = $userMessage . $linksText;
 } elseif ($intent === 'contract_search') {
