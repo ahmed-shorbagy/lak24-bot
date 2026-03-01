@@ -68,33 +68,44 @@ class FileProcessor
         $tmpPath = $file['tmp_name'];
 
         try {
-            // 1. Try Node.js first (more powerful)
-            $result = $this->extractPDFWithNode($tmpPath);
+            $text = '';
+            $pageCount = 1;
+            $method = 'unknown';
 
-            // 2. Fallback: Try smalot/pdfparser (professional PHP library)
-            if (!$result['success'] || empty(trim($result['text'] ?? ''))) {
+            // 1. PRIMARY: Try smalot/pdfparser (fast, reliable, pure PHP)
+            $smalotResult = $this->extractPDFWithSmalot($tmpPath);
+
+            if ($smalotResult['success'] && !empty(trim($smalotResult['text'] ?? ''))) {
+                $text = $smalotResult['text'];
+                $pageCount = $smalotResult['pageCount'];
+                $method = 'smalot_pdfparser';
+            } else {
                 if ($this->logger) {
-                    $this->logger->info('Node.js PDF extraction failed, trying smalot/pdfparser', [
+                    $this->logger->info('smalot/pdfparser extraction failed or empty', [
                         'filename' => $file['name'],
-                        'error'    => $result['error'] ?? 'Empty text',
+                        'error'    => $smalotResult['error'] ?? 'Empty text',
                     ]);
                 }
-                
-                $smalotResult = $this->extractPDFWithSmalot($tmpPath);
-                
-                if ($smalotResult['success'] && !empty(trim($smalotResult['text'] ?? ''))) {
-                    $text = $smalotResult['text'];
-                    $pageCount = $smalotResult['pageCount'];
-                } else {
-                    // 3. Last resort: SimplePDFExtractor
-                    if ($this->logger) {
-                        $this->logger->info('smalot/pdfparser failed too, trying SimplePDFExtractor', [
-                            'error' => $smalotResult['error'] ?? 'Empty text',
-                        ]);
+
+                // 2. FALLBACK: Try Node.js ONLY if local binary exists (skip if no binary = faster)
+                $localNode = __DIR__ . '/../bin/node';
+                if (file_exists($localNode)) {
+                    $nodeResult = $this->extractPDFWithNode($tmpPath);
+                    if ($nodeResult['success'] && !empty(trim($nodeResult['text'] ?? ''))) {
+                        $text = $nodeResult['text'];
+                        $pageCount = $nodeResult['pageCount'] ?? 1;
+                        $method = 'node_js';
                     }
-                    
+                }
+
+                // 3. LAST RESORT: SimplePDFExtractor
+                if (empty(trim($text))) {
+                    if ($this->logger) {
+                        $this->logger->info('Trying SimplePDFExtractor as last resort');
+                    }
+
                     $fallback = SimplePDFExtractor::extract($tmpPath);
-                    
+
                     if (empty(trim($fallback['text']))) {
                         return [
                             'success' => false,
@@ -106,10 +117,8 @@ class FileProcessor
 
                     $text = $fallback['text'];
                     $pageCount = $fallback['pageCount'];
+                    $method = 'php_simple';
                 }
-            } else {
-                $text = $result['text'];
-                $pageCount = $result['pageCount'] ?? 1;
             }
 
             // --- UTF-8 Safety Cleanup ---
@@ -125,7 +134,7 @@ class FileProcessor
                     'filename'    => $file['name'],
                     'text_length' => mb_strlen($text),
                     'page_count'  => $pageCount,
-                    'method'      => isset($smalotResult) && $smalotResult['success'] ? 'smalot_pdfparser' : (isset($fallback) ? 'php_simple' : 'node_js')
+                    'method'      => $method
                 ]);
             }
 
