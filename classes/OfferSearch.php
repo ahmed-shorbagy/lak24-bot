@@ -72,8 +72,10 @@ class OfferSearch
             'timestamp'    => time(),
         ];
 
-        // Cache the results
-        $this->cache->set($cacheKey, $result, 'offers');
+        // Cache the results ONLY if we found products (don't cache empty results)
+        if (count($results) > 0) {
+            $this->cache->set($cacheKey, $result, 'offers');
+        }
 
         if ($this->logger) {
             $this->logger->info('Offer search completed', [
@@ -144,6 +146,7 @@ class OfferSearch
                 foreach ($amzResults as $r) {
                     if (count($results) >= $limit) break;
                     if ($this->isAccessory($r['title']) && !$this->isAccessoryRequested($query)) continue;
+                    if (!$this->isRelevantProduct($r['title'], $query)) continue;
                     $results[] = $r;
                 }
             } catch (\Exception $e) {
@@ -282,6 +285,9 @@ class OfferSearch
                     if ($this->isAccessory($title) && !$this->isAccessoryRequested($query)) {
                         continue;
                     }
+                    if (!$this->isRelevantProduct($title, $query)) {
+                        continue;
+                    }
 
                     if ($maxPrice === null || $price <= $maxPrice) {
                         $results[] = [
@@ -322,6 +328,9 @@ class OfferSearch
 
                 if (!empty($title) && $price !== null) {
                     if ($this->isAccessory($title) && !$this->isAccessoryRequested($query)) {
+                        continue;
+                    }
+                    if (!$this->isRelevantProduct($title, $query)) {
                         continue;
                     }
                     if ($maxPrice === null || $price <= $maxPrice) {
@@ -368,6 +377,9 @@ class OfferSearch
 
                 if (!empty($title) && $price !== null) {
                     if ($this->isAccessory($title) && !$this->isAccessoryRequested($query)) {
+                        continue;
+                    }
+                    if (!$this->isRelevantProduct($title, $query)) {
                         continue;
                     }
                     if ($maxPrice === null || $price <= $maxPrice) {
@@ -621,7 +633,7 @@ class OfferSearch
             // Cleaning
             'reinigungs', 'cleaning', 'pflege', 'care',
             // Generic accessory words
-            'zubehör', 'ersatzteil', 'socke',
+            'zubehör', 'ersatzteil', 'socke', 'kamin', 'ersatz', 'deckel', 'blende', 'reinigung', 'pflegemittel',
         ];
 
         $titleLower = mb_strtolower($title);
@@ -694,6 +706,16 @@ class OfferSearch
                 'specs' => ['wifi', 'lte', '5g', 'zoll', 'android', 'ipados',
                     '64gb', '128gb', '256gb'],
                 'exclusions' => ['hülle', 'tasche', 'panzerglas', 'laptop', 'smartphone'],
+            ],
+            'kühlschrank' => [
+                'brands' => ['bosch', 'samsung', 'lg', 'siemens', 'liebherr', 'haier', 'gorenje', 'miele', 'koenic', 'amica', 'hisense', 'aeg', 'bomann', 'klarstein', 'priveleg', 'severin', 'beko', 'comfee'],
+                'specs' => ['liter', 'kühlen', 'gefrieren', 'kombi', 'nofrost', 'side-by-side', 'kühl', 'freistehend', 'einbau'],
+                'exclusions' => ['kamin', 'ofen', 'herd', 'mikrowelle', 'tasche', 'hülle', 'laptop', 'smartphone', 'fernseher'],
+            ],
+            'bürostuhl' => [
+                'brands' => ['hjh office', 'songmics', 'topstar', 'nowy styl', 'steelcase', 'herman miller', 'interstuhl'],
+                'specs' => ['ergonomisch', 'rollen', 'lehne', 'armlehnen', 'höhenverstellbar', 'wippfunktion', 'stoff', 'leder', 'netz'],
+                'exclusions' => ['kühlschrank', 'laptop', 'smartphone', 'hülle', 'tasche'],
             ],
         ];
 

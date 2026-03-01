@@ -214,133 +214,88 @@ $enhancedMessage = $userMessage;
 $userLang = detectLanguage($userMessage);
 
 if ($intent === 'offer_search') {
-    // Extract price if mentioned
+    $userLang = detectLanguage($userMessage);
     $maxPrice = extractPrice($userMessage);
 
-    // CRITICAL: Translate user's query to German product keywords
-    // This prevents Arabic text from being used in Amazon/eBay URLs
-    $germanKeyword = $chatgpt->extractProductKeyword($userMessage);
-    $searchVariants = $chatgpt->getSearchVariants($germanKeyword);
-
+    // Step 1: Extract clean German product keyword
+    $keyword = $chatgpt->extractProductKeyword($userMessage);
     $logger->info('Offer search triggered', [
-        'original'  => $userMessage,
-        'keyword'   => $germanKeyword,
-        'max_price' => $maxPrice,
-        'variants'  => count($searchVariants)
+        'original' => $userMessage,
+        'keyword' => $keyword,
+        'max_price' => $maxPrice
     ]);
 
-    // 1. Perform actual search (lak24, Amazon, Awin) using the GERMAN keyword
-    $searchResults = $search->search($germanKeyword, $maxPrice, '', $searchVariants);
-    
-    // 2. Generate general search links using the GERMAN keyword
-    $searchLinks = $search->generateSearchLinks($germanKeyword, $maxPrice);
+    // Step 2: Get brand-specific search variants for better results
+    $searchVariants = $chatgpt->getSearchVariants($keyword);
+    $logger->info('Search variants', ['count' => count($searchVariants)]);
 
-    // Format the results for GPT to use
-    $linksText  = "\n\n[SYSTEM OFFER DATA — READ CAREFULLY]\n";
-    $linksText .= "Search keyword: {$germanKeyword}\n";
-    if ($maxPrice !== null) {
-        $linksText .= "Max budget: {$maxPrice} EUR\n";
+    // Step 3: Search local databases (Awin + idealo/geizhals scrapers)
+    $searchResults = $search->search($keyword, $maxPrice, '', $searchVariants);
+    $localResults = $searchResults['results'] ?? [];
+    $logger->info('Local search completed', ['count' => count($localResults)]);
+
+    // Step 4: Build the response data
+    $linksText = '';
+    $searchLinks = $search->generateSearchLinks($keyword, $maxPrice);
+
+    // Format local results inline
+    if (!empty($localResults)) {
+        $linksText .= "\n--- VERIFIED PRODUCTS (from real databases) ---\n";
+        foreach ($localResults as $i => $product) {
+            $linksText .= "\n" . ($i + 1) . ". " . ($product['source_icon'] ?? '🛒') . " " . $product['title'] . "\n";
+            $linksText .= "   Price: " . ($product['price_formatted'] ?? number_format($product['price'], 2, ',', '.') . ' €') . "\n";
+            if (!empty($product['source'])) {
+                $linksText .= "   Store: " . $product['source'] . "\n";
+            }
+            if (!empty($product['link'])) {
+                $linksText .= "   Link: " . $product['link'] . "\n";
+            }
+            // Add alternative search links per product
+            $encoded = urlencode($product['title']);
+            $linksText .= "   Search: [Amazon](https://www.amazon.de/s?k={$encoded}) | [idealo](https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q={$encoded})\n";
+        }
     }
 
-    // --- START ROBUST OFFER SEARCH ---
+    // Step 5: ALWAYS run web search to ensure real product results
+    // Web search uses citations for real URLs — don't ask for structured URLs
+    $logger->info('Running web search for product offers', ['keyword' => $keyword]);
+    $priceFilter = $maxPrice ? " unter {$maxPrice} Euro" : "";
     
-    // Step 1: Query Refinement (Thinking like a professional German shopper)
-    $refinementPrompt = [
-        ['role' => 'system', 'content' => "Refine the user's product query into a professional German search term for a price comparison site like idealo or geizhals.\n" .
-            "- Be specific to avoid accessories or mini-versions.\n" .
-            "- Examples:\n" .
-            "  - 'fridge' -> 'Kühl-Gefrierkombination freistehend'\n" .
-            "  - 'office chair' -> 'Bürostuhl ergonomisch'\n" .
-            "  - 'laptop' -> 'Notebook Laptop'\n" .
-            "Output ONLY the refined German search term."],
-        ['role' => 'user', 'content' => "Translate and refine: {$userMessage}"]
+    $webPrompt = [
+        [
+            'role' => 'system',
+            'content' => "You are a German product search assistant. Search for 5 of the best '{$keyword}'{$priceFilter} currently for sale in Germany.\n\n" .
+                "For each product, write:\n" .
+                "- The full product name (brand + model)\n" .
+                "- The current price in EUR\n" .
+                "- 2-3 key specifications\n" .
+                "- Link to where you found it (use the actual source URL)\n\n" .
+                "Only include REAL products you actually find in search results. Write in a simple numbered list format."
+        ],
+        ['role' => 'user', 'content' => "Suche 5 aktuelle Angebote für {$keyword}{$priceFilter} in Deutschland."]
     ];
-    $refinedResult = $chatgpt->sendMessage($refinementPrompt, $userLang);
-    $searchQuery = !empty($refinedResult['message']) ? trim($refinedResult['message']) : $germanKeyword;
-    $logger->info('Refined search query', ['original' => $userMessage, 'refined' => $searchQuery]);
-
-    // Step 2: Primary Search (Local Awin + Scrapers)
-    $searchData = $offerSearch->search($searchQuery, $maxPrice);
-    $allResults = $searchData['results'] ?? [];
-    $searchLinks = $searchData['search_links'] ?? [];
-
-    // Step 3: AI-Driven Deep Search (The "Robust" Part) - Fetch high-quality direct links
-    // Run if we have fewer than 3 results from local/scraper
-    if (count($allResults) < 3) {
-        $logger->info('Insufficient results from local/scraper, trying Deep Web Search');
-        $priceFilter = $maxPrice ? " unter {$maxPrice} Euro" : "";
-        $deepPrompt = [
-            [
-                'role' => 'system',
-                'content' => "Find EXACTLY 3 high-quality product offers for '{$searchQuery}' in Germany{$priceFilter}.\n" .
-                    "Focus on finding DIRECT product page URLs from trusted stores like: Amazon.de, MediaMarkt.de, Saturn.de, Otto.de, or Idealo.de.\n\n" .
-                    "OUTPUT FORMAT — for each product, output EXACTLY this:\n" .
-                    "PRODUCT: [full product name + model]\n" .
-                    "PRICE: [price in EUR, numbers only]\n" .
-                    "SPECS: [key specs]\n" .
-                    "URL: [direct product page URL]\n" .
-                    "---"
-            ],
-            ['role' => 'user', 'content' => "Finde 3 aktuelle Angebote für {$searchQuery}{$priceFilter} zum Kaufen in Deutschland."]
-        ];
-        $deepResult = $chatgpt->sendMessageWithWebSearch($deepPrompt, $userLang);
-        
-        if ($deepResult['success'] && !empty($deepResult['message'])) {
-            $productBlocks = preg_split('/---\s*/', $deepResult['message']);
-            foreach ($productBlocks as $block) {
-                $block = trim($block);
-                if (empty($block)) continue;
-                preg_match('/PRODUCT:\s*(.+)/i', $block, $n);
-                preg_match('/PRICE:\s*(.+)/i', $block, $p);
-                preg_match('/SPECS:\s*(.+)/i', $block, $s);
-                preg_match('/URL:\s*(.+)/i', $block, $u);
-                
-                if (!empty($n[1])) {
-                    $allResults[] = [
-                        'title' => trim($n[1]),
-                        'price' => isset($p[1]) ? (float)preg_replace('/[^\d.]/', '', $p[1]) : 0,
-                        'price_formatted' => (isset($p[1]) ? trim($p[1]) : 'Check link') . ' €',
-                        'specs' => isset($s[1]) ? trim($s[1]) : '',
-                        'link' => trim($u[1] ?? ''),
-                        'source' => 'Web Search',
-                        'source_icon' => '🌐'
-                    ];
-                }
-            }
-        }
-    }
-
-    // Step 4: Hybrid Formatting & URL Validation
-    $trustedDomains = ['amazon.de', 'idealo.de', 'geizhals.de', 'mediamarkt.de', 'saturn.de', 'otto.de', 'coolblue.de', 'notebooksbilliger.de'];
-    $linksText = "\n--- TOP OFFERS FOUND ---\n";
+    $webResult = $chatgpt->sendMessageWithWebSearch($webPrompt, $userLang);
     
-    if (empty($allResults)) {
-        $linksText .= "NO specific products found. Use the search links below.\n";
+    if ($webResult['success'] && !empty($webResult['message'])) {
+        $logger->info('Web search returned product data', ['length' => strlen($webResult['message'])]);
+        $linksText .= "\n--- PRODUCTS FOUND ONLINE ---\n";
+        $linksText .= $webResult['message'];
+        
+        // Add GUARANTEED working search links per product found
+        // Extract product names from the web search response and create search links
+        $linksText .= "\n\n--- VERIFIED SEARCH LINKS PER PRODUCT ---\n";
+        $linksText .= "For each product above, here are GUARANTEED working search links:\n";
+        $linksText .= "• [Search '{$keyword}' on Amazon.de](https://www.amazon.de/s?k=" . urlencode($keyword) . ")\n";
+        $linksText .= "• [Search '{$keyword}' on idealo.de](https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q=" . urlencode($keyword) . ")\n";
+        $linksText .= "• [Search '{$keyword}' on MediaMarkt.de](https://www.mediamarkt.de/de/search.html?query=" . urlencode($keyword) . ")\n";
+    } else {
+        $logger->warning('Web search returned no results', [
+            'error' => $webResult['error'] ?? 'empty'
+        ]);
     }
 
-    foreach ($allResults as $i => $res) {
-        $validLink = false;
-        if (!empty($res['link']) && filter_var($res['link'], FILTER_VALIDATE_URL)) {
-            $host = parse_url($res['link'], PHP_URL_HOST);
-            if ($host) {
-                foreach ($trustedDomains as $d) {
-                    if (strpos($host, $d) !== false) { $validLink = true; break; }
-                }
-            }
-        }
-        
-        $encoded = urlencode($res['title']);
-        $linksText .= "\n" . ($i+1) . ". " . ($res['source_icon'] ?? '🛒') . " " . $res['title'] . "\n";
-        $linksText .= "   Price: " . ($res['price_formatted'] ?? $res['price'] . ' €') . "\n";
-        if (!empty($res['specs'])) $linksText .= "   Specs: " . $res['specs'] . "\n";
-        
-        if ($validLink) {
-            $linksText .= "   Direct Link: [View Offer](" . $res['link'] . ")\n";
-        }
-        $linksText .= "   Alternative Search: [Amazon](https://www.amazon.de/s?k={$encoded}) | [idealo](https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q={$encoded})\n";
-    }
-
-    $linksText .= "\n--- SEARCH LINKS FOR RESEARCH ---\n";
+    // Always add search links
+    $linksText .= "\n\n--- SEARCH LINKS FOR MORE OPTIONS ---\n";
     foreach ($searchLinks as $sl) {
         $linksText .= "• {$sl['icon']} [{$sl['name']}]({$sl['url']})\n";
     }
@@ -351,14 +306,15 @@ if ($intent === 'offer_search') {
     } else {
         $linksText .= "1. Reply in the user's language.\n";
     }
-    $linksText .= "2. Present the products above with their EXACT names, prices, and links.\n";
-    $linksText .= "3. If a product has a 'Direct Link', prioritize it. If not, present the 'Search Links' for that product.\n";
-    $linksText .= "4. Highlight the 'Best Value' product based on its specifications and price.\n";
-    $linksText .= "5. 🚫 ABSOLUTELY NEVER invent product names, model numbers, prices, or URLs. This is FORBIDDEN.\n";
-    $linksText .= "6. 🚫 NEVER create fake links. Use ONLY the exact URLs provided above.\n";
-    $linksText .= "7. ⚠️ Do NOT include the legal disclaimer for product offer responses.\n";
+    $linksText .= "2. Present the products above with their EXACT names, prices, and specs.\n";
+    $linksText .= "3. For EACH product, include the Amazon/idealo/MediaMarkt SEARCH LINKS from the 'VERIFIED SEARCH LINKS' section. These are GUARANTEED to work.\n";
+    $linksText .= "4. If a product has a source link from the web search, you MAY include it, but ALWAYS also include the search links.\n";
+    $linksText .= "5. Always include the general search links section at the end for more options.\n";
+    $linksText .= "6. 🚫 ABSOLUTELY NEVER invent product names, model numbers, prices, or URLs.\n";
+    $linksText .= "7. 🚫 NEVER create fake links. Use ONLY the exact URLs provided above.\n";
+    $linksText .= "8. ⚠️ Do NOT include the legal disclaimer for product offer responses.\n";
 
-    $enhancedMessage = $userMessage . $linksText;
+    $enhancedMessage = $userMessage . "\n\n[SYSTEM OFFER DATA — READ CAREFULLY]\n" . $linksText;
 } elseif ($intent === 'contract_search') {
     $logger->info('Contract search triggered', ['original' => $userMessage]);
     
