@@ -299,8 +299,8 @@
 .lak24-message .bubble .time {
     display: block;
     font-size: 10px;
-    margin-top: 6px;
-    opacity: 0.6;
+    margin-top: 8px;
+    opacity: 0.5;
 }
 
 .lak24-message.user .bubble .time {
@@ -309,6 +309,129 @@
 
 .lak24-message.bot .bubble .time {
     text-align: right;
+}
+
+/* ─── Per-Bubble Direction Support ──────────────────────────────── */
+.lak24-message .bubble[dir="rtl"] {
+    direction: rtl;
+    text-align: right;
+}
+
+.lak24-message .bubble[dir="ltr"] {
+    direction: ltr;
+    text-align: left;
+}
+
+/* ─── Premium Bot Response Elements ──────────────────────────────── */
+
+/* Headings */
+.bubble .msg-heading {
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--lak24-primary);
+    margin: 4px 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--lak24-primary-light);
+}
+
+/* Spacing */
+.bubble .msg-spacing {
+    height: 12px;
+}
+
+/* Horizontal Divider */
+.bubble .msg-divider {
+    border: none;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--lak24-border), transparent);
+    margin: 16px 0;
+}
+
+/* Lists */
+.bubble ul,
+.bubble ol {
+    margin: 10px 0;
+    padding-right: 20px;
+    padding-left: 0;
+}
+
+.bubble[dir="ltr"] ul,
+.bubble[dir="ltr"] ol {
+    padding-left: 20px;
+    padding-right: 0;
+}
+
+.bubble li {
+    margin-bottom: 8px;
+    position: relative;
+    list-style: none;
+}
+
+/* Custom bullet for unordered lists */
+.bubble li.msg-li-un::before {
+    content: "•";
+    color: var(--lak24-primary);
+    font-weight: bold;
+    display: inline-block;
+    width: 1em;
+    margin-right: -1em;
+    position: absolute;
+    right: 1.2em;
+}
+
+.bubble[dir="ltr"] li.msg-li-un::before {
+    right: auto;
+    left: -1em;
+}
+
+/* Custom numbering for ordered lists */
+.bubble ol {
+    counter-reset: msg-counter;
+}
+
+.bubble li.msg-li-or::before {
+    counter-increment: msg-counter;
+    content: counter(msg-counter) ".";
+    color: var(--lak24-primary);
+    font-weight: 600;
+    display: inline-block;
+    width: 1.5em;
+    margin-right: -1.5em;
+    position: absolute;
+    right: 1.8em;
+}
+
+.bubble[dir="ltr"] li.msg-li-or::before {
+    right: auto;
+    left: -1.5em;
+}
+
+/* Pill-Style Links */
+.bubble .msg-link {
+    display: inline-block;
+    margin: 4px 2px;
+    padding: 6px 14px;
+    background: var(--lak24-primary-light);
+    color: var(--lak24-primary) !important;
+    border-radius: 20px;
+    text-decoration: none !important;
+    font-size: 13px;
+    font-weight: 600;
+    transition: var(--lak24-transition);
+    border: 1px solid rgba(26, 115, 232, 0.1);
+}
+
+.bubble .msg-link:hover {
+    background: var(--lak24-primary);
+    color: white !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(26, 115, 232, 0.2);
+}
+
+/* Better bot bubble shadows */
+.lak24-message.bot .bubble {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.02);
 }
 
 /* Bot avatar */

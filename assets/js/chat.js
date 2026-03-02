@@ -19,11 +19,11 @@
         allowedTypes: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
         sessionKey: 'lak24_bot_session',
         historyKey: 'lak24_bot_history',
-        welcomeMessage: 'مرحباً! 👋 أنا laki. يمكنني مساعدتك في:\n\n🛒 البحث عن أفضل العروض من المتاجر الألمانية\n🌐 ترجمة الرسائل والمستندات من الألمانية\n✍️ كتابة الردود والإيميلات\n\nكيف يمكنني مساعدتك اليوم؟',
+        welcomeMessage: 'مرحباً! 👋 أنا laki. يمكنني مساعدتك في:\n\n البحث عن أفضل العروض من المتاجر الألمانية\n ترجمة الرسائل والمستندات من الألمانية\n كتابة الردود والإيميلات\n\nكيف يمكنني مساعدتك اليوم؟',
         suggestions: [
-            'أريد عروض تلفزيون 📺',
-            'ترجم رسالة من الألمانية 🌐',
-            'ساعدني في كتابة إيميل ✍️',
+            'أريد عروض هواتف آيفون 📱',
+            'ترجم لي هذا المستند 🌐',
+            'ساعدني في كتابة رسالة رسمية ✍️',
         ],
         baseUrl: './', // Will be detected in init()
     };
@@ -371,17 +371,20 @@
         const msgDiv = document.createElement('div');
         msgDiv.className = `lak24-message ${role}`;
 
+        // Detect direction for the message bubble
+        const direction = detectTextDirection(content);
+
         if (role === 'bot') {
             msgDiv.innerHTML = `
                 <div class="msg-avatar"><img src="${CONFIG.baseUrl}assets/img/laki.jpg.jpeg" alt="laki"></div>
-                <div class="bubble" dir="auto">
+                <div class="bubble" dir="${direction}">
                     ${renderMarkdown(content)}
                     <span class="time">${time}</span>
                 </div>
             `;
         } else {
             msgDiv.innerHTML = `
-                <div class="bubble" dir="auto">
+                <div class="bubble" dir="${direction}">
                     ${escapeHtml(content)}
                     <span class="time">${time}</span>
                 </div>
@@ -392,26 +395,77 @@
         scrollToBottom();
     }
 
-    // ─── Simple Markdown Renderer ────────────────────────────────
+    // ─── Simple Markdown Renderer — Now stripping symbols ─────────
     function renderMarkdown(text) {
         if (!text) return '';
 
-        let html = escapeHtml(text);
+        let html = text.trim();
 
-        // Bold: **text** or __text__
+        // 1. Pre-process: Handle horizontal rules/dividers
+        html = html.replace(/^(?:---|\*\*\*|___)\s*$/gm, '<hr class="msg-divider">');
+
+        // 2. Headings: # Header -> styled div (stripping #)
+        html = html.replace(/^#+\s+(.*?)$/gm, '<div class="msg-heading">$1</div>');
+
+        // 3. Lists: 
+        // Unordered: - item or * item
+        // First handle nested or items with escaping
+        html = html.replace(/^[*-]\s+(.*?)$/gm, '<li class="msg-li-un">$1</li>');
+        // Ordered: 1. item
+        html = html.replace(/^\d+\.\s+(.*?)$/gm, '<li class="msg-li-or">$1</li>');
+
+        // Wrap list items in ul/ol if they exist consecutively
+        html = html.replace(/(?:<li class="msg-li-un">.*?<\/li>\s*)+/g, (match) => `<ul>${match}</ul>`);
+        html = html.replace(/(?:<li class="msg-li-or">.*?<\/li>\s*)+/g, (match) => `<ol>${match}</ol>`);
+
+        // 4. Inline clean-up
+        // Escape HTML for text nodes (carefully avoid our tags)
+        // We'll use a temporary placeholder for our tags to escape the rest
+        const tags = [];
+        html = html.replace(/<[^>]+>/g, (tag) => {
+            tags.push(tag);
+            return `__TAG_${tags.length - 1}__`;
+        });
+
+        html = escapeHtml(html);
+
+        // Restore tags
+        tags.forEach((tag, i) => {
+            html = html.replace(`__TAG_${i}__`, tag);
+        });
+
+        // 5. Bold & Italic (stripping markers)
         html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
-
-        // Italic: *text* or _text_
         html = html.replace(/\*(?!\s)(.*?)(?<!\s)\*/g, '<em>$1</em>');
+        html = html.replace(/_(?!\s)(.*?)(?<!\s)_/g, '<em>$1</em>');
 
-        // Links: [text](url)
-        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+        // 6. Links: [text](url) -> cleaned up
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" class="msg-link">$1</a>');
 
-        // Inline code: `code`
+        // 7. Inline code: `code`
         html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
 
+        // 8. Final clean up of ANY leftover markdown bullets at start of lines that missed the regex
+        html = html.replace(/^[•\-\*]\s+/gm, '');
+
+        // 9. Line breaks
+        html = html.replace(/\n\n/g, '<div class="msg-spacing"></div>');
+        html = html.replace(/\n/g, '<br>');
+
         return html;
+    }
+
+    /**
+     * Detects if the text direction should be RTL or LTR
+     * Priority: Arabic/Persian/Hebrew characters trigger RTL
+     */
+    function detectTextDirection(text) {
+        if (!text) return 'rtl'; // Default for lak24
+
+        // Match Arabic/Hebrew character range
+        const rtlPattern = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\u0590-\u05FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+        return rtlPattern.test(text) ? 'rtl' : 'ltr';
     }
 
     // ─── Typing Indicator ────────────────────────────────────────
@@ -494,13 +548,19 @@
                 const msgDiv = document.createElement('div');
                 msgDiv.className = `lak24-message ${msg.role}`;
 
+                // Get the direction from the specific bubble HTML or re-detect it
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = msg.html;
+                const bubble = tempDiv.querySelector('.bubble');
+                const direction = bubble ? (bubble.getAttribute('dir') || detectTextDirection(msg.content)) : 'rtl';
+
                 if (msg.role === 'bot') {
                     msgDiv.innerHTML = `
-                        <div class="msg-avatar">🤖</div>
-                        <div class="bubble" dir="auto">${msg.html}</div>
+                        <div class="msg-avatar"><img src="${CONFIG.baseUrl}assets/img/laki.jpg.jpeg" alt="laki"></div>
+                        <div class="bubble" dir="${direction}">${msg.html}</div>
                     `;
                 } else {
-                    msgDiv.innerHTML = `<div class="bubble" dir="auto">${msg.html}</div>`;
+                    msgDiv.innerHTML = `<div class="bubble" dir="${direction}">${msg.html}</div>`;
                 }
 
                 elements.messages.appendChild(msgDiv);

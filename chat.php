@@ -260,19 +260,34 @@ if ($intent === 'offer_search') {
     // Web search uses citations for real URLs — don't ask for structured URLs
     $logger->info('Running web search for product offers', ['keyword' => $keyword]);
     $priceFilter = $maxPrice ? " unter {$maxPrice} Euro" : "";
-    
+
+    // Construct language-aware web search prompt
+    if ($userLang === 'ar') {
+        $systemMsg = "أنت مساعد بحث عن المنتجات في ألمانيا. ابحث عن أفضل 5 عروض لـ '{$keyword}'{$priceFilter} المتاحة حالياً في ألمانيا.\n\n" .
+            "لكل منتج، اكتب:\n" .
+            "- اسم المنتج الكامل (الماركة + الموديل)\n" .
+            "- السعر الحالي باليورو\n" .
+            "- 2-3 مواصفات رئيسية\n" .
+            "- رابط المصدر (استخدم الرابط الفعلي)\n\n" .
+            "اكتب ردك باللغة العربية. استخدم قائمة مرقمة بسيطة.";
+        $userMsg = "ابحث عن 5 عروض لـ {$keyword}{$priceFilter} في ألمانيا.";
+    } else {
+        $systemMsg = "You are a German product search assistant. Search for 5 of the best '{$keyword}'{$priceFilter} currently for sale in Germany.\n\n" .
+            "For each product, write:\n" .
+            "- The full product name (brand + model)\n" .
+            "- The current price in EUR\n" .
+            "- 2-3 key specifications\n" .
+            "- Link to where you found it (use the actual source URL)\n\n" .
+            "Reply in the user's language. Write in a simple numbered list format.";
+        $userMsg = "Search for 5 current offers for {$keyword}{$priceFilter} in Germany.";
+    }
+
     $webPrompt = [
         [
             'role' => 'system',
-            'content' => "You are a German product search assistant. Search for 5 of the best '{$keyword}'{$priceFilter} currently for sale in Germany.\n\n" .
-                "For each product, write:\n" .
-                "- The full product name (brand + model)\n" .
-                "- The current price in EUR\n" .
-                "- 2-3 key specifications\n" .
-                "- Link to where you found it (use the actual source URL)\n\n" .
-                "Only include REAL products you actually find in search results. Write in a simple numbered list format."
+            'content' => $systemMsg
         ],
-        ['role' => 'user', 'content' => "Suche 5 aktuelle Angebote für {$keyword}{$priceFilter} in Deutschland."]
+        ['role' => 'user', 'content' => $userMsg]
     ];
     $webResult = $chatgpt->sendMessageWithWebSearch($webPrompt, $userLang);
     
@@ -324,7 +339,7 @@ if ($intent === 'offer_search') {
     if ($userLang === 'ar') {
         $linksText .= "2. يجب أن يكون ردك باللغة العربية حصراً.\n";
     } else {
-        $linksText .= "2. You MUST reply in ENGLISH only.\n";
+        $linksText .= "2. You MUST reply in the user's language.\n";
     }
     $linksText .= "3. Do NOT invent or hallucinate any other products or links. Do NOT suggest physical items.";
     
