@@ -116,13 +116,25 @@ CRITICAL RULES FOR THIS TRANSLATION:
     }
     
     // We don't add the message yet — we'll add it once we know if it's an image or text
-    $messages = $sessions->getMessagesForAPI($sessionId, $systemPrompt);
     $result = null;
 
+    // Dedicated translation system prompt for file uploads (clean context, no scope guard)
+    $fileTranslationPrompt = "You are a professional document translator. Your ONLY job is to translate the content provided by the user.\n\n"
+        . "RULES:\n"
+        . "1. Translate ALL human-readable text faithfully and accurately.\n"
+        . "2. Preserve formatting, paragraph breaks, and structure.\n"
+        . "3. Present technical data (URLs, API keys, IDs, codes) as-is without translating them.\n"
+        . "4. NEVER refuse a translation request. The user uploaded this file specifically for translation.\n"
+        . "5. NEVER say 'I cannot assist' or apologize. Just translate.\n"
+        . "6. Output ONLY the translated text. No preamble, no explanation.\n"
+        . "7. If the user did not specify a target language, translate to English.";
+
     if ($processed['type'] === 'image') {
-        // For images, add the placeholder and send as vision
+        // For images, use clean translation context
         $sessions->addMessage($sessionId, 'user', "📄 تم رفع ملف (صورة): {$file['name']}\n{$userMessage}");
-        $messages = $sessions->getMessagesForAPI($sessionId, $systemPrompt);
+        $messages = [
+            ['role' => 'system', 'content' => $fileTranslationPrompt],
+        ];
         $result = $chatgpt->sendVisionMessage(
             $messages,
             $processed['data'],
@@ -146,9 +158,11 @@ CRITICAL RULES FOR THIS TRANSLATION:
 
         $fullContent = $metadataHeader . "USER INSTRUCTIONS: " . $userMessage . "\n\nFILE CONTENT TO TRANSLATE:\n" . $textContent;
 
-        // Use the content ONLY for the current API call (No Storage policy)
-        $messages = $sessions->getMessagesForAPI($sessionId, $systemPrompt);
-        $messages[] = ['role' => 'user', 'content' => $fullContent];
+        // Use the shared clean translation context (no conversation history)
+        $messages = [
+            ['role' => 'system', 'content' => $fileTranslationPrompt],
+            ['role' => 'user',   'content' => $fullContent],
+        ];
         
         $result = $chatgpt->sendMessage($messages);
     }

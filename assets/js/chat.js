@@ -392,17 +392,119 @@
         scrollToBottom();
     }
 
-    // ─── Simple Markdown Renderer ────────────────────────────────
+    // ─── Enhanced Markdown Renderer ────────────────────────────────
     function renderMarkdown(text) {
         if (!text) return '';
 
+        // Split into lines for block-level processing
+        const lines = text.split('\n');
+        const blocks = [];
+        let currentList = null;  // { type: 'ul'|'ol', items: [] }
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+
+            // Horizontal rule: --- or *** or ___
+            if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+                if (currentList) { blocks.push(flushList(currentList)); currentList = null; }
+                blocks.push('<hr class="lak24-divider">');
+                continue;
+            }
+
+            // Heading: #### text  or  ### text
+            const headingMatch = line.match(/^(#{3,4})\s+(.+)$/);
+            if (headingMatch) {
+                if (currentList) { blocks.push(flushList(currentList)); currentList = null; }
+                const level = headingMatch[1].length; // 3 or 4
+                blocks.push(`<h${level}>${renderInline(headingMatch[2])}</h${level}>`);
+                continue;
+            }
+
+            // Unordered list: - item  or  • item  or  * item (not bold)
+            const ulMatch = line.match(/^\s*[-•]\s+(.+)$/);
+            if (ulMatch) {
+                if (currentList && currentList.type !== 'ul') {
+                    blocks.push(flushList(currentList)); currentList = null;
+                }
+                if (!currentList) currentList = { type: 'ul', items: [] };
+                currentList.items.push(renderInline(ulMatch[1]));
+                continue;
+            }
+
+            // Ordered list: 1. item
+            const olMatch = line.match(/^\s*\d+\.\s+(.+)$/);
+            if (olMatch) {
+                if (currentList && currentList.type !== 'ol') {
+                    blocks.push(flushList(currentList)); currentList = null;
+                }
+                if (!currentList) currentList = { type: 'ol', items: [] };
+                currentList.items.push(renderInline(olMatch[1]));
+                continue;
+            }
+
+            // Regular line — flush any pending list
+            if (currentList) { blocks.push(flushList(currentList)); currentList = null; }
+
+            // Empty line → paragraph break
+            if (line.trim() === '') {
+                blocks.push('');
+                continue;
+            }
+
+            // Normal text line
+            blocks.push(renderInline(line));
+        }
+
+        // Flush remaining list
+        if (currentList) blocks.push(flushList(currentList));
+
+        // Group consecutive text lines into <p> blocks
+        let html = '';
+        let paragraph = [];
+
+        for (const block of blocks) {
+            if (block === '') {
+                // Empty line = paragraph break
+                if (paragraph.length) {
+                    html += '<p>' + paragraph.join('<br>') + '</p>';
+                    paragraph = [];
+                }
+            } else if (block.startsWith('<h') || block.startsWith('<hr') || block.startsWith('<ul') || block.startsWith('<ol')) {
+                // Block element — flush paragraph first
+                if (paragraph.length) {
+                    html += '<p>' + paragraph.join('<br>') + '</p>';
+                    paragraph = [];
+                }
+                html += block;
+            } else {
+                paragraph.push(block);
+            }
+        }
+
+        // Flush final paragraph
+        if (paragraph.length) {
+            html += '<p>' + paragraph.join('<br>') + '</p>';
+        }
+
+        return html;
+    }
+
+    /** Flush a list accumulator into HTML */
+    function flushList(list) {
+        const tag = list.type;
+        const items = list.items.map(item => `<li>${item}</li>`).join('');
+        return `<${tag}>${items}</${tag}>`;
+    }
+
+    /** Render inline markdown (bold, italic, links, code) */
+    function renderInline(text) {
         let html = escapeHtml(text);
 
         // Bold: **text** or __text__
         html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
 
-        // Italic: *text* or _text_
+        // Italic: *text*
         html = html.replace(/\*(?!\s)(.*?)(?<!\s)\*/g, '<em>$1</em>');
 
         // Links: [text](url)

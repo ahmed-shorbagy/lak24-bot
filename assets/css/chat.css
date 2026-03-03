@@ -294,6 +294,7 @@
     color: var(--lak24-bot-text);
     border-top-left-radius: 4px;
     box-shadow: var(--lak24-shadow-sm);
+    white-space: normal;
 }
 
 .lak24-message .bubble .time {
@@ -355,19 +356,183 @@
     font-family: 'Courier New', monospace;
 }
 
+/* ─── Structured Content in Bot Bubbles ─────────────────────────── */
+.lak24-message.bot .bubble {
+    border-right: 3px solid var(--lak24-primary);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.04);
+    padding: 14px 20px;
+    transition: box-shadow 0.25s ease;
+}
+
+.lak24-message.bot .bubble:hover {
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.10), 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+/* Headings inside bot bubble */
+.lak24-message .bubble h3 {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 12px 0 6px;
+    color: var(--lak24-text);
+    letter-spacing: -0.01em;
+}
+
+.lak24-message .bubble h3:first-child {
+    margin-top: 0;
+}
+
+.lak24-message .bubble h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 10px 0 4px;
+    color: var(--lak24-text-secondary);
+}
+
+/* Dividers / Horizontal Rules */
+.lak24-message .bubble hr,
+.lak24-message .bubble .lak24-divider {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--lak24-border), transparent);
+    margin: 12px 0;
+}
+
+/* Paragraphs */
+.lak24-message .bubble p {
+    margin: 0 0 8px;
+    line-height: 1.65;
+}
+
+.lak24-message .bubble p:last-child {
+    margin-bottom: 0;
+}
+
+/* Unordered Lists */
+.lak24-message .bubble ul {
+    list-style: none;
+    margin: 6px 0 10px;
+    padding: 0 16px 0 0;
+}
+
+.lak24-message .bubble ul li {
+    position: relative;
+    padding: 3px 14px 3px 0;
+    line-height: 1.6;
+    font-size: 13.5px;
+}
+
+.lak24-message .bubble ul li::before {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 11px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--lak24-primary);
+}
+
+/* LTR unordered lists (English/German) */
+[dir="ltr"] .lak24-message .bubble ul,
+.lak24-message .bubble ul[dir="ltr"] {
+    padding: 0 0 0 16px;
+}
+
+[dir="ltr"] .lak24-message .bubble ul li,
+.lak24-message .bubble ul[dir="ltr"] li {
+    padding: 3px 0 3px 14px;
+}
+
+[dir="ltr"] .lak24-message .bubble ul li::before,
+.lak24-message .bubble ul[dir="ltr"] li::before {
+    right: auto;
+    left: 0;
+}
+
+/* Ordered Lists */
+.lak24-message .bubble ol {
+    margin: 6px 0 10px;
+    padding: 0 20px 0 0;
+    counter-reset: lak24-ol;
+    list-style: none;
+}
+
+.lak24-message .bubble ol li {
+    position: relative;
+    padding: 3px 24px 3px 0;
+    line-height: 1.6;
+    font-size: 13.5px;
+    counter-increment: lak24-ol;
+}
+
+.lak24-message .bubble ol li::before {
+    content: counter(lak24-ol);
+    position: absolute;
+    right: 0;
+    top: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--lak24-primary-light);
+    color: var(--lak24-primary);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* LTR ordered lists */
+[dir="ltr"] .lak24-message .bubble ol,
+.lak24-message .bubble ol[dir="ltr"] {
+    padding: 0 0 0 20px;
+}
+
+[dir="ltr"] .lak24-message .bubble ol li,
+.lak24-message .bubble ol[dir="ltr"] li {
+    padding: 3px 0 3px 24px;
+}
+
+[dir="ltr"] .lak24-message .bubble ol li::before,
+.lak24-message .bubble ol[dir="ltr"] li::before {
+    right: auto;
+    left: 0;
+}
+
+/* Blockquotes (for disclaimers or notes) */
+.lak24-message .bubble blockquote {
+    margin: 8px 0;
+    padding: 8px 14px;
+    border-right: 3px solid var(--lak24-border);
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+    color: var(--lak24-text-secondary);
+}
+
+[dir="ltr"] .lak24-message .bubble blockquote {
+    border-right: none;
+    border-left: 3px solid var(--lak24-border);
+    border-radius: 6px 0 0 6px;
+}
+
 /* ─── Offer Cards ───────────────────────────────────────────────── */
 .lak24-offer-card {
     background: var(--lak24-surface);
     border: 1px solid var(--lak24-border);
+    border-right: 3px solid var(--lak24-accent);
     border-radius: var(--lak24-radius-sm);
-    padding: 12px;
+    padding: 14px 16px;
     margin: 8px 0;
     transition: var(--lak24-transition);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
 }
 
 .lak24-offer-card:hover {
     border-color: var(--lak24-primary);
-    box-shadow: var(--lak24-shadow-sm);
+    border-right-color: var(--lak24-primary);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
+    transform: translateY(-1px);
 }
 
 .lak24-offer-card .offer-title {
