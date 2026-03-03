@@ -1,0 +1,20 @@
+{
+    "reply": "Hier sind einige aktuelle Angebote für Laptops unter 500 Euro:\n\n1. **bvate B5\/B8 Laptop**\n   - **Preis:** 259,99 €\n   - **Spezifikationen:** 14 Zoll, Celeron N4020, 6GB\/8GB RAM, 256GB SSD\n   - [**Link:**](https:\/\/www.awin1.com\/pclick.php?p=43618390813&a=934313&m=14336)\n   - [Amazon-Suche](https:\/\/www.amazon.de\/s?k=bvate+B5%2FB8+Laptop%2C+14+Zoll%2C+N4020%2C+6GB%2F8GB+RAM%2C+256GB+SSD+Notebook+Notebook+%2835+cm%2F14+Zoll%2C+Celeron+N4020%2C+Celeron+N4020%29)\n   - [idealo-Suche](https:\/\/www.idealo.de\/preisvergleich\/MainSearchProductCategory.html?q=bvate+B5%2FB8+Laptop%2C+14+Zoll%2C+N4020%2C+6GB%2F8GB+RAM%2C+256GB+SSD+Notebook+Notebook+%2835+cm%2F14+Zoll%2C+Celeron+N4020%2C+Celeron+N4020%29)\n\n2. **Acer Notebook**\n   - **Preis:** 368,90 €\n   - **Spezifikationen:** Intel N150, 128 GB HDD, 128 GB SSD\n   - [**Link:**](https:\/\/www.awin1.com\/pclick.php?p=43924478961&a=934313&m=14336)\n   - [Amazon-Suche](https:\/\/www.amazon.de\/s?k=Acer+Notebook+%28Intel+Intel+N150%2C+128+GB+HDD%2C+128+GB+SSD%29)\n   - [idealo-Suche](https:\/\/www.idealo.de\/preisvergleich\/MainSearchProductCategory.html?q=Acer+Notebook+%28Intel+Intel+N150%2C+128+GB+HDD%2C+128+GB+SSD%29)\n\n3. **Acer Chromeb. 317 CB317-1H-C3YA**\n   - **Preis:** 390,88 €\n   - **Spezifikationen:** 43,94 cm, 8GB RAM, 128GB SSD\n   - [**Link:**](https:\/\/www.awin1.com\/pclick.php?p=43155003300&a=934313&m=14336)\n   - [Amazon-Suche](https:\/\/www.amazon.de\/s?k=Acer+Chromeb.+317+CB317-1H-C3YA+43%2C94cm+8GB+128GB+SSD+Notebook)\n   - [idealo-Suche](https:\/\/www.idealo.de\/preisvergleich\/MainSearchProductCategory.html?q=Acer+Chromeb.+317+CB317-1H-C3YA+43%2C94cm+8GB+128GB+SSD+Notebook)\n\n4. **Acer Chromebook 317 (CB317-1H-C3YA)**\n   - **Preis:** 440,90 €\n   - **Spezifikationen:** 128 GB eMMC, 8 GB RAM\n   - [**Link:**](https:\/\/www.awin1.com\/pclick.php?p=42524583515&a=934313&m=14336)\n   - [Amazon-Suche](https:\/\/www.amazon.de\/s?k=Acer+Chromebook+317+%28CB317-1H-C3YA%29+128+GB+eMMC+%2F+8+GB+Notebook+silver+Chromebook)\n   - [idealo-Suche](https:\/\/www.idealo.de\/preisvergleich\/MainSearchProductCategory.html?q=Acer+Chromebook+317+%28CB317-1H-C3YA%29+128+GB+eMMC+%2F+8+GB+Notebook+silver+Chromebook)\n\n5. **Asus Chromebook Plus CX14**\n   - **Preis:** 449,00 €\n   - **Spezifikationen:** Intel Core 3, 8GB RAM, 128GB eMMC\n   - [**Link:**](https:\/\/www.awin1.com\/pclick.php?p=43984619953&a=934313&m=14336)\n   - [Amazon-Suche](https:\/\/www.amazon.de\/s?k=Asus+Chromebook+Plus+CX14+Laptop+Intel+Core+3%2C+8GB+RAM%2C+128GB+eMMC+ChromeOS+Chromebook+%2835%2C56+cm%2F14+Zoll%2C+Intel+Core+3+N355%2C+Intel+UHD+Graphics%2C+Webcam+mit+Abdeckung%29)\n   - [idealo-Suche](https:\/\/www.idealo.de\/preisvergleich\/MainSearchProductCategory.html?q=Asus+Chromebook+Plus+CX14+Laptop+Intel+Core+3%2C+8GB+RAM%2C+128GB+eMMC+ChromeOS+Chromebook+%2835%2C56+cm%2F14+Zoll%2C+Intel+Core+3+N355%2C+Intel+UHD+Graphics%2C+Webcam+mit+Abdeckung%29)\n\nFür weitere Optionen können Sie die folgenden Links nutzen:\n- [lak24.de](https:\/\/lak24.de\/search?q=Laptop)\n- [Amazon.de](https:\/\/www.amazon.de\/s?k=Laptop&tag=lak2400-21&rh=p_36%3A-50000)\n- [idealo.de](https:\/\/www.idealo.de\/preisvergleich\/MainSearchProductCategory.html?q=Laptop&maxPrice=500)\n- [MediaMarkt.de](https:\/\/www.mediamarkt.de\/de\/search.html?query=Laptop)\n- [eBay.de](https:\/\/www.ebay.de\/sch\/i.html?_nkw=Laptop&_udhi=500)\n- [geizhals.de](https:\/\/geizhals.de\/?fs=Laptop&bpmax=500)",
+    "session_id": "457d24b16bf7cf190f4723e61a4a37f9",
+    "type": "offer_search",
+    "usage": {
+        "prompt_tokens": 4536,
+        "completion_tokens": 1347,
+        "total_tokens": 5883,
+        "prompt_tokens_details": {
+            "cached_tokens": 3072,
+            "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+        }
+    }
+}

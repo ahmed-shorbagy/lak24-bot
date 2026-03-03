@@ -1,7 +1,7 @@
 # lak24 AI Chatbot — REST API Documentation
 
 > **Version**: 1.0  
-> **Base URL**: `https://your-domain.com/lak24_bot/api.php`  
+> **Base URL**: `https://chat.lak24.de/api.php`  
 > **Authentication**: API Key via `X-API-Key` header  
 > **Content-Type**: `application/json` (text endpoints) / `multipart/form-data` (file upload)
 
@@ -76,7 +76,7 @@ If sending a file, you MUST use `multipart/form-data`.
 #### cURL Example (Text)
 
 ```bash
-curl -X POST "https://your-domain.com/lak24_bot/api.php?action=chat" \
+curl -X POST "https://chat.lak24.de/api.php?action=chat" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: YOUR_API_KEY" \
   -d '{"message": "أريد عروض تلفزيون", "session_id": null}'
@@ -85,7 +85,7 @@ curl -X POST "https://your-domain.com/lak24_bot/api.php?action=chat" \
 #### cURL Example (File via Form-Data)
 
 ```bash
-curl -X POST "https://your-domain.com/lak24_bot/api.php?action=chat" \
+curl -X POST "https://chat.lak24.de/api.php?action=chat" \
   -H "X-API-Key: YOUR_API_KEY" \
   -F "file=@document.pdf" \
   -F "session_id=a1b2c3d4e5f6" \
